@@ -1,0 +1,14 @@
+# OS / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# Never commit credentials into a plugin repo — plugin content is cloned verbatim
+# onto every machine that installs it.
+.env
+.env.*
+*.pem
+*.key
+.credentials.json

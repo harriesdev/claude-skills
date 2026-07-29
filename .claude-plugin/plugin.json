@@ -1,0 +1,46 @@
+{
+  "name": "claude-skills",
+  "version": "0.1.0",
+  "description": "Josh's personal agent skills — backend, frontend, mobile, quality, architecture and design-process skills.",
+  "author": {
+    "name": "Josh",
+    "email": "josh@jahax.com"
+  },
+  "keywords": [
+    "skills",
+    "backend",
+    "frontend",
+    "testing",
+    "code-review"
+  ],
+  "skills": [
+    "./skills/architecture/architecture-designer",
+    "./skills/architecture/feature-forge",
+    "./skills/architecture/fullstack-guardian",
+    "./skills/architecture/spec-miner",
+    "./skills/backend/api-designer",
+    "./skills/backend/database-optimizer",
+    "./skills/backend/nestjs-expert",
+    "./skills/backend/postgres-pro",
+    "./skills/backend/websocket-engineer",
+    "./skills/frontend/angular-architect",
+    "./skills/frontend/nextjs-developer",
+    "./skills/frontend/react-expert",
+    "./skills/languages/javascript-pro",
+    "./skills/languages/typescript-pro",
+    "./skills/misc/atlassian-mcp",
+    "./skills/misc/the-fool",
+    "./skills/mobile/flutter-expert",
+    "./skills/mobile/react-native-expert",
+    "./skills/process/domain-modeling",
+    "./skills/process/grill-with-docs",
+    "./skills/process/grilling",
+    "./skills/quality/code-reviewer",
+    "./skills/quality/debugging-wizard",
+    "./skills/quality/monitoring-expert",
+    "./skills/quality/playwright-expert",
+    "./skills/quality/secure-code-guardian",
+    "./skills/quality/security-reviewer",
+    "./skills/quality/test-master"
+  ]
+}

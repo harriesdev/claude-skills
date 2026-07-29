@@ -1,0 +1,2 @@
+# Keep LF in the repo — these files get cloned onto macOS/Linux machines too.
+* text=auto eol=lf

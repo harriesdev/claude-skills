@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-skills",
+  "description": "Josh's personal Claude Code skills, as an installable plugin.",
+  "owner": {
+    "name": "Josh",
+    "email": "josh@jahax.com"
+  },
+  "plugins": [
+    {
+      "name": "claude-skills",
+      "source": "./",
+      "description": "Personal agent skills — backend, frontend, mobile, quality, architecture and design-process skills.",
+      "category": "development",
+      "keywords": [
+        "skills",
+        "backend",
+        "frontend",
+        "devops",
+        "testing"
+      ]
+    }
+  ]
+}
