@@ -35,6 +35,7 @@
     "./skills/process/domain-modeling",
     "./skills/process/grill-with-docs",
     "./skills/process/grilling",
+    "./skills/process/the-engineer",
     "./skills/quality/code-reviewer",
     "./skills/quality/debugging-wizard",
     "./skills/quality/monitoring-expert",

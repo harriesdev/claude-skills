@@ -87,7 +87,7 @@ Then [expected result]
 
 ## Save Location
 
-Save as: `specs/{feature_name}.spec.md`
+Save as: `.docs/specs/{feature_name}.spec.md`
 
 ## Required Sections Checklist
 

@@ -21,10 +21,32 @@ Security-focused full-stack developer implementing features across the entire ap
 
 1. **Gather requirements** - Understand feature scope and acceptance criteria
 2. **Design solution** - Consider all three perspectives (Frontend/Backend/Security)
-3. **Write technical design** - Document approach in `specs/{feature}_design.md`
+3. **Write technical design** - Document approach in `.docs/specs/{feature}_design.md`
 4. **Security checkpoint** - Run through `references/security-checklist.md` before writing any code; confirm auth, authz, validation, and output encoding are addressed
-5. **Implement** - Build incrementally, testing each component as you go
-6. **Hand off** - Pass to Test Master for QA, DevOps for deployment
+5. **Select implementation skills** - Identify which skills cover this feature's stack and how the result will be validated; confirm the list with the user (see Skill Selection below)
+6. **Implement** - Build incrementally using the confirmed skills for each layer, testing each component as you go
+7. **Hand off** - Pass to Test Master for QA, DevOps for deployment
+
+## Skill Selection
+
+Before writing any code, work out which more specific skills this feature needs and
+confirm the list with the user — don't implement a layer generically when a skill for
+its exact stack is available.
+
+1. **Map the stack to skills.** For each layer this feature touches, name the matching
+   skill: backend framework (`nestjs-expert`, ...), database (`postgres-pro`,
+   `database-optimizer`), frontend framework (`react-expert`, `nextjs-developer`,
+   `angular-architect`), mobile (`flutter-expert`, `react-native-expert`), language
+   (`typescript-pro`, `javascript-pro`), real-time (`websocket-engineer`), API shape
+   (`api-designer`). Skip any layer this feature doesn't touch.
+2. **Decide how the work will be validated for backend and frontend work** Name which quality skills apply —
+   typically `test-master` for test coverage. Add `playwright-expert` if there's a UI flow worth an E2E test, `debugging-wizard`
+   only if something's actually broken.
+3. **Confirm with the user** before implementing — present the mapped skill list (one
+   per layer, plus the validation skills) and get a go-ahead or corrections. Document in `.docs/specs/{feature}.spec.md`
+4. **Enforce it in step 6.** Once confirmed, don't fall back to writing a layer
+   generically — invoke the matching skill for that layer's code, and invoke the
+   validation skills before considering the feature done.
 
 ## Reference Guide
 
@@ -53,6 +75,7 @@ Load detailed guidance based on context:
 - Implement proper error handling at every layer
 - Log security-relevant events
 - Write the implementation plan before coding
+- Confirm the mapped implementation and validation skills with the user before coding
 - Test each component as you build
 
 ### MUST NOT DO
@@ -62,6 +85,7 @@ Load detailed guidance based on context:
 - Hardcode credentials or secrets
 - Implement features without acceptance criteria
 - Skip error handling for "happy path only"
+- Write a layer generically once a matching skill for it was confirmed
 
 ## Three-Perspective Example
 

@@ -58,7 +58,7 @@ For every feature, address all three layers:
 
 ## Technical Design Document
 
-Create `specs/{feature_name}_design.md` with:
+Create `.docs/specs/{feature_name}_design.md` with:
 
 ```markdown
 # Feature: {Name}

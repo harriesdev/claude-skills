@@ -95,6 +95,6 @@ When they submit valid credentials,
 Then they are redirected to the dashboard within 2 seconds.
 ```
 
-Save as: `specs/{feature_name}.spec.md`
+Save as: `.docs/specs/{feature_name}.spec.md`
 
 [Documentation](https://jeffallan.github.io/claude-skills/skills/workflow/feature-forge/)

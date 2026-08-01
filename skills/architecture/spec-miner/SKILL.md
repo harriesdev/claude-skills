@@ -96,7 +96,7 @@ Load detailed guidance based on context:
 
 ## Output Templates
 
-Save specification as: `specs/{project_name}_reverse_spec.md`
+Save specification as: `.docs/specs/{project_name}_reverse_spec.md`
 
 Include:
 1. Technology stack and architecture

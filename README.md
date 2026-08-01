@@ -1,6 +1,6 @@
 # claude-skills
 
-Private Claude Code marketplace carrying 28 personal agent skills. The repo root **is**
+Private Claude Code marketplace carrying 29 personal agent skills. The repo root **is**
 the plugin — marketplace `claude-skills`, plugin `claude-skills`.
 
 ## Install on any computer
@@ -48,7 +48,7 @@ skills/
   languages/            2
   misc/                 2
   mobile/               2
-  process/              3   design-process skills, see process/NOTICE.md
+  process/              4   design-process skills, see process/NOTICE.md
   quality/              7
 ```
 
