@@ -1,21 +1,41 @@
 # claude-skills
 
-Private Claude Code marketplace carrying 29 personal agent skills. The repo root **is**
-the plugin — marketplace `claude-skills`, plugin `claude-skills`.
+Private Claude Code marketplace carrying personal agent skills. Install them all as one
+plugin, or any skill on its own — every skill is also its own plugin.
 
 ## Install on any computer
 
+Add the marketplace once:
+
 ```
 claude plugin marketplace add harriesdev/claude-skills
-claude plugin install claude-skills@claude-skills
 ```
 
-Restart the Claude Code session afterwards — plugins load at startup.
+Then install everything:
+
+```
+claude plugin install all-skills@claude-skills
+```
+
+or only the skills you want, by skill name:
+
+```
+claude plugin install nestjs-expert@claude-skills
+claude plugin install feature-forge@claude-skills
+```
+
+`/plugin` inside a session lists them all. Don't install `all-skills` alongside individual
+skills — you'd get each of those skills twice. Restart the Claude Code session afterwards;
+plugins load at startup.
 
 The repo is private, so the clone uses your normal git credentials. If
 `git clone git@github.com:harriesdev/claude-skills.git` works in a plain terminal on that
 machine, the marketplace add will too — which means an SSH key registered with GitHub, or
 a credential helper holding a token if you switch the remote to HTTPS.
+
+The bundle used to be called `claude-skills@claude-skills`. That name is reserved for
+Anthropic, so it is now `all-skills`; the marketplace's `renames` entry moves existing
+installs over on the next update.
 
 ## Update
 
@@ -30,7 +50,7 @@ Restart the session to pick up changes.
 ## Remove
 
 ```
-claude plugin uninstall claude-skills@claude-skills
+claude plugin uninstall all-skills@claude-skills      # or <skill-name>@claude-skills
 claude plugin marketplace remove claude-skills
 ```
 
@@ -38,33 +58,39 @@ claude plugin marketplace remove claude-skills
 
 ```
 .claude-plugin/
-  marketplace.json      marketplace manifest; the plugin's source is "./"
-  plugin.json           plugin manifest, including the skills[] allowlist
-scripts/verify.sh       checks allowlist vs. disk before you push
+  marketplace.json      the all-skills bundle, then one plugin entry per skill (generated)
+  plugin.json           the all-skills plugin manifest, including skills[] (generated)
+scripts/
+  build-marketplace.py  regenerates both skill lists from skills/ on disk
+  verify.sh             fails if the manifests are stale or a name doesn't match its folder
 skills/
-  architecture/         4
-  backend/              5
-  frontend/             3
-  languages/            2
-  misc/                 2
-  mobile/               2
-  process/              4   design-process skills, see process/NOTICE.md
-  quality/              7
+  architecture/
+  backend/
+  frontend/
+  languages/
+  mobile/
+  quality/
+  review/
 ```
 
-### Why skills[] is explicit
+### How the manifests are built
 
-By default a plugin discovers skills at `skills/<name>/SKILL.md` — one level deep. The
-category subfolders here are one level deeper than that, so `plugin.json` lists each skill
-path explicitly. Two consequences:
+A plugin discovers skills at `skills/<name>/SKILL.md` by default — one level deep. The
+category folders here are one level deeper, so both lists are explicit:
 
-- **Adding a skill is two steps**: create `skills/<category>/<name>/SKILL.md`, then add
-  `"./skills/<category>/<name>"` to `skills[]` in `plugin.json`. A skill that is on disk
-  but missing from the array will not load.
-- **The array doubles as a ship/don't-ship switch.** To park a work-in-progress skill,
-  leave it in the tree and omit it from the array.
+- `plugin.json` `skills[]` lists every skill path, for the `all-skills` bundle (source `./`).
+- Each per-skill entry in `marketplace.json` uses the skill's own folder as its source,
+  with `"skills": ["./"]`, so installing it copies only that skill.
 
-Run `bash scripts/verify.sh` to catch drift between the two.
+Both are generated, so **adding a skill** is: create `skills/<category>/<name>/SKILL.md`,
+run `python3 scripts/build-marketplace.py`, commit. The per-skill description is the first
+sentence of the skill's `description`, and its category is the folder it sits in.
+
+To **park a work-in-progress skill**, put an empty `.wip` file in its folder; the generator
+leaves it out of both lists.
+
+Run `bash scripts/verify.sh` before pushing, and `claude plugin validate .` to check the
+manifests against Claude Code itself.
 
 ## Skill requirements
 

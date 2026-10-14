@@ -1,31 +1,33 @@
 #!/usr/bin/env bash
-# Checks that plugin.json's "skills" allowlist matches what's actually on disk,
-# and that every SKILL.md's `name:` matches its folder name. Run before pushing.
+# Checks that plugin.json and marketplace.json match the skills on disk (i.e. that
+# scripts/build-marketplace.py has been run), and that every SKILL.md's `name:`
+# matches its folder name. Run before pushing.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 fail=0
+tmp=$(mktemp -d)
+trap 'cp "$tmp"/*.json .claude-plugin/; rm -rf "$tmp"' EXIT
+cp .claude-plugin/plugin.json .claude-plugin/marketplace.json "$tmp"/
 
-declared=$(grep -o '"\./skills/[^"]*"' .claude-plugin/plugin.json | tr -d '"' | sed 's#^\./##' | sort)
-actual=$(find skills -name SKILL.md | sed 's#/SKILL.md##' | sort)
+python3 scripts/build-marketplace.py > /dev/null || exit 1
+for f in plugin.json marketplace.json; do
+  if ! diff -q "$tmp/$f" ".claude-plugin/$f" > /dev/null; then
+    echo "OUT OF DATE: .claude-plugin/$f — run: python3 scripts/build-marketplace.py"
+    diff "$tmp/$f" ".claude-plugin/$f" | sed 's/^/  /'
+    fail=1
+  fi
+done
+[ "$fail" -eq 0 ] && echo "ok: manifests match $(find skills -name SKILL.md | wc -l) skills on disk"
 
-if [ "$declared" != "$actual" ]; then
-  echo "MISMATCH between plugin.json skills[] and skills/ on disk:"
-  diff <(echo "$declared") <(echo "$actual") | sed 's/^/  /'
-  fail=1
-else
-  echo "ok: $(echo "$actual" | wc -l) skills declared and present"
-fi
-
-while IFS= read -r dir; do
-  [ -z "$dir" ] && continue
-  folder=$(basename "$dir")
-  name=$(sed -n 's/^name:[[:space:]]*//p' "$dir/SKILL.md" | head -1)
-  if [ "$name" != "$folder" ]; then
+while IFS= read -r skill_md; do
+  dir=$(dirname "$skill_md")
+  name=$(sed -n 's/^name:[[:space:]]*//p' "$skill_md" | head -1)
+  if [ "$name" != "$(basename "$dir")" ]; then
     echo "MISMATCH: $dir declares name '$name'"
     fail=1
   fi
-done <<< "$actual"
+done < <(find skills -name SKILL.md | sort)
 
 [ "$fail" -eq 0 ] && echo "all checks passed"
 exit "$fail"

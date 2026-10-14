@@ -1,16 +1,16 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "claude-skills",
-  "description": "Josh's personal Claude Code skills, as an installable plugin.",
+  "description": "Josh's personal Claude Code skills. Install them all as one plugin, or each skill on its own.",
   "owner": {
     "name": "Josh",
     "email": "josh@jahax.com"
   },
   "plugins": [
     {
-      "name": "claude-skills",
+      "name": "all-skills",
       "source": "./",
-      "description": "Personal agent skills — backend, frontend, mobile, quality, architecture and design-process skills.",
+      "description": "All skills in one plugin — backend, frontend, languages, mobile, quality, review and architecture.",
       "category": "development",
       "keywords": [
         "skills",
@@ -19,6 +19,180 @@
         "devops",
         "testing"
       ]
+    },
+    {
+      "name": "feature-forge",
+      "source": "./skills/architecture/feature-forge",
+      "description": "Conducts structured requirements workshops to produce feature specifications, user stories, EARS-format functional requirements, acceptance criteria, and implementation checklists, while building a…",
+      "category": "architecture",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "database-optimizer",
+      "source": "./skills/backend/database-optimizer",
+      "description": "Optimizes database queries and improves performance across PostgreSQL and MySQL systems.",
+      "category": "backend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "dotnet-core-expert",
+      "source": "./skills/backend/dotnet-core-expert",
+      "description": "Use when building .NET 8 applications with minimal APIs, clean architecture, or cloud-native microservices.",
+      "category": "backend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "nestjs-expert",
+      "source": "./skills/backend/nestjs-expert",
+      "description": "Creates and configures NestJS modules, controllers, services, entities, DTOs, guards, and interceptors for enterprise-grade TypeScript backend applications.",
+      "category": "backend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "postgres-pro",
+      "source": "./skills/backend/postgres-pro",
+      "description": "Use when optimizing PostgreSQL queries, configuring replication, or implementing advanced database features.",
+      "category": "backend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "rust-engineer",
+      "source": "./skills/backend/rust-engineer",
+      "description": "Writes, reviews, and debugs idiomatic Rust code with memory safety and zero-cost abstractions.",
+      "category": "backend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "secure-code-guardian",
+      "source": "./skills/backend/secure-code-guardian",
+      "description": "Use when implementing authentication/authorization, securing user input, or preventing OWASP Top 10 vulnerabilities — including custom security implementations such as hashing passwords with…",
+      "category": "backend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "websocket-engineer",
+      "source": "./skills/backend/websocket-engineer",
+      "description": "Use when building real-time communication systems with WebSockets or Socket.IO.",
+      "category": "backend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "angular-architect",
+      "source": "./skills/frontend/angular-architect",
+      "description": "Generates Angular 17+ standalone components, configures advanced routing with lazy loading and guards, implements NgRx state management, applies RxJS patterns, and optimizes bundle performance.",
+      "category": "frontend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "nextjs-developer",
+      "source": "./skills/frontend/nextjs-developer",
+      "description": "Use when building Next.js 14+ applications with App Router, server components, or server actions.",
+      "category": "frontend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "react-expert",
+      "source": "./skills/frontend/react-expert",
+      "description": "Use when building React 18+ applications in .jsx or .tsx files, Next.js App Router projects, or create-react-app setups.",
+      "category": "frontend",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "javascript-pro",
+      "source": "./skills/languages/javascript-pro",
+      "description": "Writes, debugs, and refactors JavaScript code using modern ES2023+ features, async/await patterns, ESM module systems, and Node.js APIs.",
+      "category": "languages",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "typescript-pro",
+      "source": "./skills/languages/typescript-pro",
+      "description": "Implements advanced TypeScript type systems, creates custom type guards, utility types, and branded types, and configures tRPC for end-to-end type safety.",
+      "category": "languages",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "flutter-expert",
+      "source": "./skills/mobile/flutter-expert",
+      "description": "Use when building cross-platform applications with Flutter 3+ and Dart.",
+      "category": "mobile",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "react-native-expert",
+      "source": "./skills/mobile/react-native-expert",
+      "description": "Builds, optimizes, and debugs cross-platform mobile applications with React Native and Expo.",
+      "category": "mobile",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "playwright-expert",
+      "source": "./skills/quality/playwright-expert",
+      "description": "Use when writing E2E tests with Playwright, setting up test infrastructure, or debugging flaky browser tests.",
+      "category": "quality",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "test-master",
+      "source": "./skills/quality/test-master",
+      "description": "Generates test files, creates mocking strategies, analyzes code coverage, designs test architectures, and produces test plans and defect reports across functional, performance, and security testing…",
+      "category": "quality",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "code-reviewer",
+      "source": "./skills/review/code-reviewer",
+      "description": "Analyzes code diffs and files to identify bugs, security vulnerabilities (SQL injection, XSS, insecure deserialization), code smells, N+1 queries, naming issues, and architectural concerns, then…",
+      "category": "review",
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "security-reviewer",
+      "source": "./skills/review/security-reviewer",
+      "description": "Identifies security vulnerabilities, generates structured audit reports with severity ratings, and provides actionable remediation guidance.",
+      "category": "review",
+      "skills": [
+        "./"
+      ]
     }
-  ]
+  ],
+  "renames": {
+    "claude-skills": "all-skills"
+  }
 }
