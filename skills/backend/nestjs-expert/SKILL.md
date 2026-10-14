@@ -31,6 +31,7 @@ Load detailed guidance based on context:
 
 | Topic | Reference | Load When |
 |-------|-----------|-----------|
+| API Design | `references/api-design-standards.md` | REST/GraphQL APIs, versioning, CORS, validation |
 | Controllers | `references/controllers-routing.md` | Creating controllers, routing, Swagger docs, validation pipes |
 | Services | `references/services-di.md` | Services, dependency injection, providers |
 | Repositories | `references/repositories-typeorm.md` | Repository, query, typeorm |

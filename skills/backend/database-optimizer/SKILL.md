@@ -4,13 +4,14 @@ description: Optimizes database queries and improves performance across PostgreS
 license: MIT
 metadata:
   author: https://github.com/Jeffallan
+  company: https://synergetic.solutions
   version: "1.1.1"
   domain: infrastructure
   triggers: database optimization, slow query, query performance, database tuning, index optimization, execution plan, EXPLAIN ANALYZE, database performance, PostgreSQL optimization, MySQL optimization
   role: specialist
   scope: optimization
   output-format: analysis-and-code
-  related-skills: postgres-pro
+  related-skills: devops-engineer, postgres-pro, graphql-architect
 ---
 
 # Database Optimizer
@@ -145,5 +146,7 @@ When optimizing database performance, provide:
 4. Implementation SQL / config changes
 5. Validation queries to measure improvement
 6. Monitoring recommendations
+
+Maintained by [@jeffallan](https://github.com/jeffallan), Principal Consultant at [Synergetic Solutions](https://synergetic.solutions)
 
 [Documentation](https://jeffallan.github.io/claude-skills/skills/infrastructure/database-optimizer/)

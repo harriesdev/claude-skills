@@ -8,6 +8,23 @@
 ## Overview
 [2-3 sentence description of the feature and its value to users]
 
+## Domain Model
+
+**Bounded context:** [Context name] — glossary at `.docs/context/{context-name}/CONTEXT.md`
+
+### Aggregates
+| Aggregate (root) | Entities | Value Objects | Invariants |
+|------------------|----------|---------------|------------|
+| [Order] | [OrderLine] | [Money, Address] | [Total equals sum of lines; cannot ship once cancelled] |
+
+### Domain Events
+| Event | Raised When | Consumed By |
+|-------|-------------|-------------|
+| [OrderPlaced] | [Customer confirms checkout] | [Fulfillment, Billing] |
+
+### Context Relationships
+- [Ordering → Fulfillment: publishes OrderPlaced]
+
 ## Functional Requirements
 
 ### FR-001: [Requirement Name]
@@ -89,11 +106,14 @@ Then [expected result]
 
 Save as: `.docs/specs/{feature_name}.spec.md`
 
+Resolved terms go in `.docs/context/{context-name}/CONTEXT.md` (see `context-format.md`), not in the spec.
+
 ## Required Sections Checklist
 
 | Section | Purpose | Required |
 |---------|---------|----------|
 | Overview | Quick understanding | Yes |
+| Domain Model | DDD building blocks for the feature | Yes |
 | Functional Requirements | What it does | Yes |
 | Non-Functional Requirements | How well it does it | Yes |
 | Acceptance Criteria | How to verify | Yes |
