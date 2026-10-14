@@ -27,12 +27,12 @@ GET    /api/posts/:id/comments     # Comments on post
 202 Accepted        // Async operation queued
 
 // Client error codes
-400 Bad Request     // Malformed request
+400 Bad Request     // Malformed request or validation failed
 401 Unauthorized    // Authentication required
 403 Forbidden       // Authenticated but not authorized
 404 Not Found       // Resource doesn't exist
 409 Conflict        // Resource conflict (e.g., duplicate)
-422 Unprocessable   // Validation failed
+422 Unprocessable   // Well-formed but semantically invalid
 429 Too Many Requests // Rate limit exceeded
 
 // Server error codes
@@ -41,45 +41,57 @@ GET    /api/posts/:id/comments     # Comments on post
 503 Service Unavailable   // Temporary downtime
 ```
 
-### Standardized Error Responses
+### Backend Error Handling
+
 ```typescript
-interface ApiError {
-  error: {
-    code: string;           // Machine-readable error code
-    message: string;        // Human-readable message
-    details?: {             // Field-level validation errors
-      [field: string]: string[];
-    };
-    requestId: string;      // For support/debugging
-    timestamp: string;      // ISO 8601 timestamp
-  };
-}
-
-// Examples
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid input data",
-    "details": {
-      "email": ["Must be a valid email address"],
-      "password": ["Must be at least 12 characters"]
-    },
-    "requestId": "req_abc123",
-    "timestamp": "2025-01-15T10:30:00Z"
+// NestJS
+@Patch(':id')
+public async updateUser(
+  @Param('id') id: string,
+  @Body() dto: UpdateUserDto,
+  @CurrentUser() user: User,
+) {
+  if (user.id !== id && !user.isAdmin) {
+    throw new ForbiddenException('Not authorized');
   }
-}
 
-{
-  "error": {
-    "code": "RESOURCE_NOT_FOUND",
-    "message": "User not found",
-    "requestId": "req_def456",
-    "timestamp": "2025-01-15T10:31:00Z"
+  try {
+    return await this.userService.update(id, dto);
+  } catch (error) {
+    if (error instanceof UserNotFoundError) {
+      throw new NotFoundException('User not found');
+    }
+    if (error instanceof EmailTakenError) {
+      throw new UnprocessableEntityException('Email already in use');
+    }
+    throw error;
   }
 }
 ```
 
+### Error Response Format
+
+Every error uses this shape. `HttpExceptionFilter` produces it; see `references/error-handling.md`.
+
+```typescript
+// Consistent error shape
+interface ApiError {
+  error: ErrorCode;
+  message: string;
+  details?: Record<string, string[]>;
+  requestId?: string;
+}
+
+// Example responses
+{ "error": "VALIDATION_ERROR", "message": "Invalid input", "details": { "email": ["Invalid format"] } }
+{ "error": "NOT_FOUND", "message": "User not found" }
+{ "error": "FORBIDDEN", "message": "Not authorized to perform this action" }
+```
+
 ### Pagination
+
+In this codebase, list endpoints take `PaginationQueryDto` and return `Page<T>` mapped by a `{X}PageDto` (`references/dto-responses.md`). The generic example below also shows `sort`, `filter` and `links`; add them to a list's query DTO and page DTO when that list needs them.
+
 ```typescript
 // Query parameters
 GET /api/users?page=1&limit=20&sort=-createdAt&filter[role]=admin
@@ -161,6 +173,8 @@ app.use((req, res, next) => {
 
 ## Rate Limiting
 
+In NestJS use `@nestjs/throttler` (see the Rate Limiting section of `references/authentication.md`). The Express examples below show the same limits for non-Nest services.
+
 ### Per-Endpoint Configuration
 ```typescript
 // Express with express-rate-limit
@@ -204,6 +218,8 @@ app.use(async (req, res, next) => {
 ```
 
 ## CORS Configuration
+
+In NestJS, `CorsConfigService` builds these options from `CORS_ORIGINS` (see `references/controllers-routing.md`).
 
 ### Production-ready CORS
 ```typescript
@@ -297,11 +313,11 @@ async create(@Body() dto: CreateUserDto) {
 |--------|----------|---------|
 | URL naming | Plural nouns | `/api/users` not `/api/user` |
 | HTTP methods | RESTful semantics | GET (read), POST (create), PUT/PATCH (update), DELETE |
-| Status codes | Semantic usage | 200 (success), 201 (created), 422 (validation) |
-| Errors | Consistent format | `{ error: { code, message, details } }` |
-| Pagination | Meta + links | `{ data, meta: { page, total }, links }` |
+| Status codes | Semantic usage | 200 (success), 201 (created), 400 (validation) |
+| Errors | Consistent format | `{ error, message, details?, requestId }` |
+| Pagination | Data + meta | `{ data, meta: { page, limit, total, totalPages } }` |
 | Versioning | URL path | `/api/v1/users` |
-| Rate limiting | Per-endpoint | Auth: 5/min, General: 100/15min |
+| Rate limiting | `@nestjs/throttler` | Auth: 5/min, General: 100/min |
 | CORS | Whitelist origins | Production domains only |
-| Validation | Schema-based | Zod/Pydantic with detailed errors |
+| Validation | class-validator | Forms and `ApiValidationPipe`, field-level `details` |
 | Documentation | OpenAPI | Auto-generated from decorators |

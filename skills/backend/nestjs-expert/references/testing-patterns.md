@@ -1,72 +1,107 @@
 # Testing Patterns
 
+## Constraints
+
+### MUST DO
+- Name test files `{x}.test.ts` and mirror the `src/` path under `test/` (Jest only matches `.*\.test\.ts$`)
+- Mock custom repositories by class (`{ provide: PostRepository, useValue: ... }`)
+- Build entity fixtures with test factories from `test/resources/`
+- Register `requestIdMiddleware`, `ApiValidationPipe` and URI versioning in E2E apps, matching `main.ts`
+- Test that another user's record returns 404 for every endpoint on a user-owned resource
+
+### MUST NOT DO
+- Mock `getRepositoryToken(Entity)` for services that inject a custom repository — the token isn't what they depend on
+- Name test files `.spec.ts`
+
+## Jest Config
+
+```json
+// package.json
+"jest": {
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "test",
+  "testRegex": ".*\\.test\\.ts$",
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "collectCoverageFrom": ["**/*.(t|j)s"],
+  "coverageDirectory": "../coverage",
+  "testEnvironment": "node"
+}
+```
+
+E2E tests use `test/jest-e2e.json` and run with `npm run test:e2e`.
+
 ## Unit Test Setup
 
-```typescript
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { NotFoundException } from '@nestjs/common';
+Services inject custom repositories (`PostRepository`), so the mock is provided under the repository class.
 
-describe('UsersService', () => {
-  let service: UsersService;
-  let repo: jest.Mocked<Repository<User>>;
+```typescript
+// test/modules/posts/posts.service.test.ts
+import { NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { PostRepository } from '../../../src/modules/database/repositories/post/post.repository';
+import { PostsService } from '../../../src/modules/posts/posts.service';
+import { PostRepositoryTestFactory } from '../../resources/modules/database/repositories/post/post-repository.test-factory';
+import { PostTestFactory } from '../../resources/domain/post/post.test-factory';
+import { UserTestFactory } from '../../resources/domain/user/user.test-factory';
+
+describe(PostsService.name, () => {
+  let service: PostsService;
+  let postRepository: ReturnType<typeof PostRepositoryTestFactory.build>;
 
   beforeEach(async () => {
+    postRepository = PostRepositoryTestFactory.build();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        UsersService,
-        {
-          provide: getRepositoryToken(User),
-          useValue: {
-            create: jest.fn(),
-            save: jest.fn(),
-            findOne: jest.fn(),
-            delete: jest.fn(),
-          },
-        },
+        PostsService,
+        { provide: PostRepository, useValue: postRepository },
       ],
     }).compile();
 
-    service = module.get(UsersService);
-    repo = module.get(getRepositoryToken(User));
+    service = module.get(PostsService);
   });
 
   afterEach(() => jest.clearAllMocks());
 });
 ```
 
+Use `getRepositoryToken(Entity)` only for a class that injects `@InjectRepository(Entity) Repository<Entity>` directly.
+
 ## Service Tests
 
 ```typescript
-describe('create', () => {
-  it('should create user', async () => {
-    const dto = { email: 'test@test.com', password: 'pass', name: 'Test' };
-    const user = { id: '1', ...dto };
+describe('createPost', () => {
+  it('should assign the owner, save and return the post', async () => {
+    const user = UserTestFactory.build();
+    const post = PostTestFactory.build();
+    postRepository.save.mockImplementation(async (saved) => saved);
 
-    repo.create.mockReturnValue(user as User);
-    repo.save.mockResolvedValue(user as User);
+    const result = await service.createPost(post, user);
 
-    const result = await service.create(dto);
-
-    expect(repo.create).toHaveBeenCalledWith(dto);
-    expect(repo.save).toHaveBeenCalledWith(user);
-    expect(result).toEqual(user);
+    expect(result.getUser()).toBe(user);
+    expect(postRepository.save).toHaveBeenCalledWith(post);
   });
 });
 
-describe('findOne', () => {
-  it('should return user', async () => {
-    const user = { id: '1', email: 'test@test.com' };
-    repo.findOne.mockResolvedValue(user as User);
+describe('getOwnedPost', () => {
+  it('should return a post the user owns', async () => {
+    const owner = UserTestFactory.build();
+    const post = PostTestFactory.build({ id: 1, user: owner });
+    postRepository.findById.mockResolvedValue(post);
 
-    const result = await service.findOne('1');
-    expect(result).toEqual(user);
+    expect(await service.getOwnedPost(1, owner)).toBe(post);
   });
 
-  it('should throw NotFoundException', async () => {
-    repo.findOne.mockResolvedValue(null);
-    await expect(service.findOne('1')).rejects.toThrow(NotFoundException);
+  it('should throw NotFoundException when the post does not exist', async () => {
+    postRepository.findById.mockResolvedValue(null);
+    await expect(service.getOwnedPost(1, UserTestFactory.build())).rejects.toThrow(NotFoundException);
+  });
+
+  it('should throw NotFoundException for another user\'s post', async () => {
+    const post = PostTestFactory.build({ id: 1, user: UserTestFactory.build() });
+    postRepository.findById.mockResolvedValue(post);
+
+    await expect(service.getOwnedPost(1, UserTestFactory.build())).rejects.toThrow(NotFoundException);
   });
 });
 ```
@@ -110,8 +145,12 @@ describe('UsersController', () => {
 ## E2E Tests
 
 ```typescript
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, VersioningType } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
+import { AppModule } from '../src/app.module';
+import { requestIdMiddleware } from '../src/shared/middleware/request-id.middleware';
+import { ApiValidationPipe } from '../src/shared/pipes/api-validation.pipe';
 
 describe('UsersController (e2e)', () => {
   let app: INestApplication;
@@ -123,21 +162,22 @@ describe('UsersController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+    app.use(requestIdMiddleware);
+    app.enableVersioning({ type: VersioningType.URI });
+    app.useGlobalPipes(new ApiValidationPipe());
     await app.init();
 
-    // Get auth token
     const response = await request(app.getHttpServer())
-      .post('/auth/login')
+      .post('/v1/authentication/login')
       .send({ email: 'test@test.com', password: 'password' });
-    authToken = response.body.access_token;
+    authToken = response.body.accessToken;
   });
 
   afterAll(() => app.close());
 
   it('/users (POST)', () => {
     return request(app.getHttpServer())
-      .post('/users')
+      .post('/v1/users')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ email: 'new@test.com', password: 'Test1234', name: 'New' })
       .expect(201)
@@ -148,7 +188,7 @@ describe('UsersController (e2e)', () => {
 
   it('/users/:id (GET) - 404', () => {
     return request(app.getHttpServer())
-      .get('/users/nonexistent-id')
+      .get('/v1/users/999999')
       .set('Authorization', `Bearer ${authToken}`)
       .expect(404);
   });
@@ -158,69 +198,73 @@ describe('UsersController (e2e)', () => {
 ## Entity Tests
 
 ```typescript
-import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
-
+// test/domain/merchant/merchant.entity.test.ts
 describe(Merchant.name, () => {
   let merchant: Merchant;
 
   beforeAll(async () => {
-    merchant = MerchantFactory.build({ id: 1 });
-    merchant.setUsers(UserFactory.buildList(4, {
+    merchant = MerchantTestFactory.build({ id: 1 });
+    merchant.setUsers(UserTestFactory.buildList(4, {
       merchantId: 1,
       isAssociatedToMerchant: () => true
     }))
   });
 
-  afterAll(() => app.close());
-
   describe('isAssociatedToMerchant', () => {
     it('should associate first user to the merchant', () => {
-      expect(merchant.getUsers()[0].isAssociatedToMerchant).toBe(true);
+      expect(merchant.getUsers()[0].isAssociatedToMerchant()).toBe(true);
     });
-  }
+  });
 });
 ```
 
-## Mock Entity Factory
+## Test Factory
+
+Test factories build entity fixtures for tests. They live in `test/resources/` and are named `{x}.test-factory.ts` / `XTestFactory` so they are never confused with domain factories (`src/domain/{x}/{x}.factory.ts`), which are production code.
+
+`DomainObject` has no setters for `id` or the audit columns, so test factories assign them directly with `Object.assign`.
+
 ```typescript
+// test/resources/domain/merchant/merchant.test-factory.ts
+let merchantIdSequence = 0;
 
-let idSequence = 0;
-export const MerchantFactory = {
+export const MerchantTestFactory = {
   build(overrides: Partial<Merchant> = {}): Merchant {
-    const merchant = new Merchant();
+    const merchant = new Merchant().setName('A Merchant');
 
-    merchant
-      .setId(++idSequence)
-      .setName('A Merchant')
-      .setUpdatedAt(new Date('2026-06-17T22:15:15.222Z'));
+    Object.assign(merchant, {
+      id: ++merchantIdSequence,
+      updatedDate: new Date('2026-06-17T22:15:15.222Z'),
+    });
 
     return Object.assign(merchant, overrides);
   },
 
   buildList(count: number, overrides: Partial<Merchant> = {}): Merchant[] {
     return Array.from({ length: count }, () =>
-      MerchantFactory.build(overrides),
+      MerchantTestFactory.build(overrides),
     );
   },
 };
 
-let idSequence = 0;
-export const UserFactory = {
-  build(overrides: Partial<User> = {}): User {
-    const user = new User();
+// test/resources/domain/user/user.test-factory.ts
+let userIdSequence = 0;
 
-    user
-      .setId(++idSequence)
-      .setName('A User')
-      .setUpdatedAt(new Date('2026-06-17T22:15:15.222Z'));
+export const UserTestFactory = {
+  build(overrides: Partial<User> = {}): User {
+    const user = new User().setName('A User');
+
+    Object.assign(user, {
+      id: ++userIdSequence,
+      updatedDate: new Date('2026-06-17T22:15:15.222Z'),
+    });
 
     return Object.assign(user, overrides);
   },
 
   buildList(count: number, overrides: Partial<User> = {}): User[] {
     return Array.from({ length: count }, () =>
-      UserFactory.build(overrides),
+      UserTestFactory.build(overrides),
     );
   },
 };
@@ -228,12 +272,23 @@ export const UserFactory = {
 
 ## Mock Repository Factory
 
+`createMockRepository` mocks the `RepositorySupport` and TypeORM methods every repository has. Each repository's test factory adds its own custom methods.
+
 ```typescript
-export const createMockRepository = <T>() => ({
+// test/resources/modules/database/repositories/create-mock-repository.ts
+export const createMockRepository = () => ({
   create: jest.fn(),
   save: jest.fn(),
   find: jest.fn(),
   findOne: jest.fn(),
+  findOneBy: jest.fn(),
+  findById: jest.fn(),
+  findAndCount: jest.fn(),
+  findPage: jest.fn(),
+  recover: jest.fn(),
+  restore: jest.fn(),
+  softRemove: jest.fn(),
+  remove: jest.fn(),
   update: jest.fn(),
   delete: jest.fn(),
   createQueryBuilder: jest.fn(() => ({
@@ -243,6 +298,20 @@ export const createMockRepository = <T>() => ({
     getMany: jest.fn(),
   })),
 });
+```
+
+```typescript
+// test/resources/modules/database/repositories/post/post-repository.test-factory.ts
+export const PostRepositoryTestFactory = {
+  build() {
+    return {
+      ...createMockRepository(),
+      findAll: jest.fn(),
+      findPageByUser: jest.fn(),
+      findByIdWithRelations: jest.fn(),
+    };
+  },
+};
 ```
 
 ## Quick Reference
