@@ -4,10 +4,11 @@
 
 ### MUST DO
 - Extend `DomainObject` for every entity that needs an id and audit columns
+- Use integer primary keys (`@PrimaryGeneratedColumn()`, `SERIAL`) for every table
 - Name every table with `@Entity(DatabaseTable.X)` and add the table to the `DatabaseTable` enum
 - Eager load OneToOne & ManyToOne relationships
 - Use relationships in repository queries or lazy load OneToMany relationships
-- Import entity into `api/src/domain/index.ts` and add it to the exported const Entities
+- Import entity into `server/src/domain/index.ts` and add it to the exported const Entities
 - Create a domain factory (`{x}.factory.ts`) that builds the entity from its form
 - Create an entity validator (`{x}.validator.ts`) for business rules and call it from `validateAndSet...` methods
 - Give user-owned entities `isOwnedBy(user)` and `canBeAccessedBy(user)` (owner or admin)
@@ -16,6 +17,7 @@
 - Eager load OneToMany & ManyToMany relationships
 - Set audit columns (`createdBy`, `updatedBy`, `deletedBy`) by hand — `DomainAuditSubscriber` fills them in
 - Declare `id` or audit columns on an entity that extends `DomainObject`
+- Use UUID or string primary keys (`@PrimaryGeneratedColumn('uuid')`) — every id is an integer
 
 ## Domain Files
 
@@ -445,21 +447,11 @@ export class Comment extends DomainObject {
 }
 ```
 
-## Entity Pattern with UUID
+## Integer Ids
 
-```typescript
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
-import { DatabaseTable } from '../database-table.enum';
+Every primary key is an auto-incrementing integer: `@PrimaryGeneratedColumn()` on `DomainObject` or on an entity that skips it, and `SERIAL PRIMARY KEY` in the migration. Foreign keys and the `*_by` audit columns are `INTEGER`, path ids are parsed with `ParseIntPipe`, and ids are `number` in entities, DTOs and `JwtPayload.sub`.
 
-@Entity(DatabaseTable.User)
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-}
-```
+An id that must not be guessable, such as a share link or an invitation, goes in its own unique column (for example `token VARCHAR(64)`) next to the integer id. It never replaces the primary key.
 
 ## Domain Factory
 

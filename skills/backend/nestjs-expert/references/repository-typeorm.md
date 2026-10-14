@@ -214,6 +214,7 @@ export class PostgresTypeormConfigService extends ApiConfigService {
       'DB_USERNAME',
       'DB_PASSWORD',
       'DB_DATABASE',
+      'DB_SSL',
     ]);
   }
 
@@ -231,7 +232,7 @@ export class PostgresTypeormConfigService extends ApiConfigService {
       subscribers: [DomainAuditSubscriber],
       synchronize: false,
       logging: this.getLoggingOptions(),
-      ssl: this.isProduction() ? { rejectUnauthorized: false } : false,
+      ssl: this.getBoolean('DB_SSL') ? { rejectUnauthorized: false } : false,
     };
   }
 
@@ -251,6 +252,7 @@ export const AppDataSource = new DataSource(
 ### Rules
 - `synchronize` is always `false` — schema changes go through migrations only
 - Missing `DB_*` environment variables fail fast at startup
+- `DB_SSL` (`true` or `false`) alone decides whether the connection uses SSL — never derive it from the environment, because a self-hosted Postgres container in production may not serve SSL while a managed database requires it
 - `SnakeNamingStrategy` maps camelCase properties to snake_case columns; table names come from `@Entity(DatabaseTable.X)`
 - `DomainAuditSubscriber` is registered here so audit columns are filled on every `DomainObject` (see `references/entities-domain.md`)
 

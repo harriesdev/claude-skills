@@ -5,7 +5,7 @@
 ```typescript
 import {
   IsEmail, IsString, IsOptional, IsBoolean, IsInt,
-  MinLength, MaxLength, Min, Max, IsUUID, IsEnum,
+  MinLength, MaxLength, Min, Max, IsEnum,
   IsArray, ArrayMinSize, ValidateNested, Matches
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
@@ -84,8 +84,9 @@ export class CreateOrderDto {
 }
 
 export class OrderItemDto {
-  @IsUUID()
-  productId: string;
+  @IsInt()
+  @Min(1)
+  productId: number;
 
   @IsInt()
   @Min(1)

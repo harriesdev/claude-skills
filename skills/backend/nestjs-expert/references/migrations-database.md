@@ -3,7 +3,7 @@
 ## Constraints
 
 ### MUST DO
-- Create migration for database changes in `api/src/modules/database/migrations/`
+- Create migration for database changes in `server/src/modules/database/migrations/`
 - Use current unix timestamp in filename and class title, and set `name` to the class name
 - Use down method to revert changes to original state in up method.
 - Include the six audit columns in every table for an entity that extends `DomainObject`

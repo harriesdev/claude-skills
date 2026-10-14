@@ -13,6 +13,7 @@ Two config services exist side by side. They have different names so it is alway
 - Register Nest's `ConfigModule.forRoot({ envFilePath: '.env', isGlobal: true })` once in `AppModule`
 - Inject `ConfigService` from `@nestjs/config` in any class the DI container creates
 - Use `getOrThrow()` for required values on `ConfigService`
+- Read boolean flags with `getBoolean()`, which accepts only `true` or `false` and throws on anything else
 - Use `ApiConfigService` (or a subclass) for values needed before or outside DI
 - Subclass `ApiConfigService` per concern (e.g. `PostgresTypeormConfigService`) and list required keys in its static `create()` with `ensureValues()`
 - Subclass Nest's `ConfigService` for injectable, concern-specific config (e.g. `SocratesHttpConfigService`)
@@ -22,6 +23,7 @@ Two config services exist side by side. They have different names so it is alway
 - Read `process.env` directly outside `ApiConfigService`
 - Instantiate Nest's `ConfigService` with `new`
 - Inject `ApiConfigService` — it is a plain class, not a provider
+- Decide feature flags such as database SSL from `isProduction()` — give each its own variable (`DB_SSL`)
 
 ## ApiConfigService
 
@@ -55,6 +57,14 @@ export class ApiConfigService {
 
   public isTesting(): boolean {
     return this.getValue('ENV', false) === Environment.Testing;
+  }
+
+  public getBoolean(key: string): boolean {
+    const value = this.getValue(key);
+    if (value !== 'true' && value !== 'false') {
+      throw new Error(`Config Error - Env.${key} must be true or false`);
+    }
+    return value === 'true';
   }
 
   protected getValue(key: string, throwOnMissing = true): string {

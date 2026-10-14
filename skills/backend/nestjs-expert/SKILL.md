@@ -2,7 +2,7 @@
 name: nestjs-expert
 description: Creates and configures NestJS modules, controllers, services, entities, DTOs, guards, and interceptors for enterprise-grade TypeScript backend applications. Use when building NestJS REST APIs, implementing dependency injection, scaffolding modular architecture, adding JWT/Passport authentication, integrating TypeORM, or working with .module.ts, .controller.ts, and .service.ts files. Invoke for guards, interceptors, pipes, validation, Swagger documentation, and unit/E2E testing in NestJS projects.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   domain: backend
   triggers: NestJS, Nest, Api, Node.js backend, TypeScript backend, dependency injection, controller, service, module, guard, interceptor, entity, typeorm, repository
   role: specialist
@@ -23,7 +23,7 @@ Senior NestJS specialist with deep expertise in enterprise-grade, scalable TypeS
 4. **Implement** — Create modules, services, forms, response DTOs and controllers with proper DI wiring
 5. **Secure** — Mark public endpoints with `@Public()`, restrict roles with `@Roles()`, validate input with forms and `ApiValidationPipe`
 6. **Verify** — Run `npm run lint`, `npm run build`, and confirm DI graph with `nest info`
-7. **Test** — Write unit tests for services and E2E tests for controllers. Write tests for entities. Run `npm run test`
+7. **Test** — Write Vitest unit tests for services and E2E tests for controllers. Write tests for entities. Run `npm run test`
 
 ## Reference Guide
 
@@ -39,16 +39,16 @@ Load detailed guidance based on context:
 | Migrations | `references/migrations-database.md` | Migration, database, postgres |
 | DTOs & Forms | `references/dtos-validation.md` | Validation, class-validator, request DTOs, forms, `ApiValidationPipe` |
 | Response DTOs | `references/dto-responses.md` | `@DtoResponse`, `@DtoProperty`, mapping entities to responses |
-| Configuration | `references/configuration.md` | ConfigService, ApiConfigService, env variables |
-| Error Handling | `references/error-handling.md` | Error responses, `HttpExceptionFilter`, `ValidationException`, request ids |
-| Authentication | `references/authentication.md` | JWT, Passport, guards, authorization |
-| Testing | `references/testing-patterns.md` | Unit tests, E2E tests, mocking |
+| Configuration | `references/configuration.md` | ConfigService, ApiConfigService, env variables, boolean flags |
+| Error Handling | `references/error-handling.md` | Error responses, `HttpExceptionFilter`, `ValidationException`, 402 `SUBSCRIPTION_REQUIRED`, request ids |
+| Authentication | `references/authentication.md` | JWT, Passport, guards, authorization, sessions, refresh tokens, refresh cookie |
+| Testing | `references/testing-patterns.md` | Vitest config, unit tests, E2E tests, mocking |
 
 
 ## NestJS Application Structure
 
 ```
-api/
+server/
 ├── src/
 │   ├── docs/
 │   │   ├── api-documentation.const.ts
@@ -58,6 +58,12 @@ api/
 │   │   ├── database-table.enum.ts
 │   │   ├── domain-object.ts
 │   │   ├── index.ts
+│   │   ├── authentication/
+│   │   │   ├── authentication.entity.ts
+│   │   │   ├── auth-transport.enum.ts
+│   │   │   └── token-type.enum.ts
+│   │   ├── refresh-token/
+│   │   │   └── refresh-token.entity.ts
 │   │   ├── user/
 │   │   │   ├── user.entity.ts
 │   │   │   ├── user.factory.ts
@@ -99,10 +105,14 @@ api/
 │   │   │   ├── database.module.ts
 │   │   │   ├── migrations/
 │   │   │   │   ├── 1761848303789-create-user-table.ts
-│   │   │   │   └── 1761848303790-create-post-table.ts
+│   │   │   │   ├── 1761848303790-create-post-table.ts
+│   │   │   │   └── 1761848303791-create-refresh-token-table.ts
 │   │   │   └── repositories
 │   │   │       ├── repository-services.const.ts
 │   │   │       ├── repository.support.ts
+│   │   │       ├── refresh-token/
+│   │   │       │   ├── refresh-token-relation.type.ts
+│   │   │       │   └── refresh-token.repository.ts
 │   │   │       ├── user/
 │   │   │       │   ├── user-relation.type.ts
 │   │   │       │   └── user.repository.ts
@@ -113,6 +123,9 @@ api/
 │   │   │   ├── authentication.controller.ts
 │   │   │   ├── authentication.module.ts
 │   │   │   ├── authentication.service.ts
+│   │   │   ├── cookies/
+│   │   │   │   ├── auth-cookie.enum.ts
+│   │   │   │   └── auth-cookie.service.ts
 │   │   │   └── strategies/
 │   │   │       └── jwt.strategy.ts
 │   │   ├── users/
@@ -128,6 +141,9 @@ api/
 │   │   │   ├── dto-properties-array-symbol.const.ts
 │   │   │   └── throttle-values.const.ts
 │   │   ├── decorators/
+│   │   │   ├── auth-transport.decorator.ts
+│   │   │   ├── cookies.decorator.ts
+│   │   │   ├── current-session-id.decorator.ts
 │   │   │   ├── current-user.decorator.ts
 │   │   │   ├── dto.decorator.ts
 │   │   │   ├── dto-property.decorator.ts
@@ -136,12 +152,14 @@ api/
 │   │   │   ├── public.decorator.ts
 │   │   │   └── roles.decorator.ts
 │   │   ├── enums/
+│   │   │   ├── api-route.enum.ts
 │   │   │   ├── error-code.enum.ts
 │   │   │   ├── error-messages.enum.ts
 │   │   │   └── request-header.enum.ts
 │   │   ├── exceptions/
 │   │   │   ├── illegal-argument.exception.ts
 │   │   │   ├── illegal-state.exception.ts
+│   │   │   ├── subscription-required.exception.ts
 │   │   │   └── validation.exception.ts
 │   │   ├── filter/
 │   │   │   └── http-exception.filter.ts
@@ -158,6 +176,7 @@ api/
 │   │   │   └── sentry.interceptor.ts
 │   │   ├── interfaces/
 │   │   │   ├── api-error.interface.ts
+│   │   │   ├── authenticated-request.interface.ts
 │   │   │   ├── dto-property-type.interface.ts
 │   │   │   └── jwt-payload.interface.ts
 │   │   ├── middleware/
@@ -175,7 +194,12 @@ api/
 │   │       └── security-position.validator.ts
 │   ├── app.module.ts
 │   └── main.ts
+├── vitest.config.ts
+├── vitest.config.e2e.ts
 └── test/
+    ├── e2e/
+    │   ├── authentication.e2e.test.ts
+    │   └── posts.e2e.test.ts
     ├── domain/
     │   ├── user/
     │   │   ├── user.entity.test.ts    
@@ -346,7 +370,7 @@ Records a user may not access return 404, the same as missing records. See `refe
 
 ## Entities with getters and setters
 
-Entities extend `DomainObject`, which provides `id` and the audit columns (`createdDate`, `createdBy`, `updatedDate`, `updatedBy`, `deletedDate`, `deletedBy`). `DomainAuditSubscriber` fills the `*By` columns from the authenticated user. Entities that don't need auditing declare their own `@PrimaryGeneratedColumn` instead. See `references/entities-domain.md`.
+Entities extend `DomainObject`, which provides `id` and the audit columns (`createdDate`, `createdBy`, `updatedDate`, `updatedBy`, `deletedDate`, `deletedBy`). `DomainAuditSubscriber` fills the `*By` columns from the authenticated user. Entities that don't need auditing declare their own `@PrimaryGeneratedColumn` instead. Every id is an auto-incrementing integer. See `references/entities-domain.md`.
 
 ```typescript
 // post.entity.ts
@@ -511,7 +535,7 @@ describe(PostsService.name, () => {
     service = module.get(PostsService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 
   it('returns a post the user owns', async () => {
     const owner = UserTestFactory.build();
@@ -540,18 +564,25 @@ describe(PostsService.name, () => {
 - Return `Page<T>` from every list endpoint, taking `PaginationQueryDto`; never return unbounded arrays
 - Use `201` for creates, `204` with `@HttpCode` for empty responses, `PATCH` for partial updates and `POST /:id/{action}` for actions
 - Let `HttpExceptionFilter` (registered as `APP_FILTER`) shape every error as `{ error, message, details?, requestId }` (see `references/error-handling.md`)
+- Throw `SubscriptionRequiredException` (402, `SUBSCRIPTION_REQUIRED`) when an action needs a subscription the user doesn't have
 - Sign access and refresh tokens with separate secrets and a `type` claim, rotate refresh tokens, and rate-limit auth endpoints with `@Throttle`
+- Keep one `RefreshToken` session per login so a user can be signed in on several devices; put the session id (`sid`) in both tokens, revoke only the affected session on refresh token reuse, and support signing out of all other sessions
+- Accept the access token only from the `Authorization: Bearer` header; deliver the web app's refresh token as an httpOnly cookie scoped to `/api/v1/authentication`, set only through `AuthCookieService`
 - Allow only the origins in `CORS_ORIGINS`
-- Add `@Version('1')` to every endpoint and `@ApiBearerAuth('JWT-bearer-token')` to every authenticated controller
+- Serve every route under `/api/v1/`: `app.setGlobalPrefix(ApiRoute.Prefix)` in `main.ts` plus `@Version('1')` on every endpoint; Swagger UI is at `/api/docs`
+- Add `@ApiBearerAuth('JWT-bearer-token')` to every authenticated controller
 - Mark unauthenticated endpoints with `@Public()` and restrict roles with `@Roles(UserRole.X)`; `JwtAuthGuard` and `RolesGuard` run globally as `APP_GUARD` (see `references/authentication.md`)
 - Extend `RepositorySupport<T>` for every repository
 - Document controllers with `@ApiTags(SwaggerTags.X)` and document all endpoints with `@ApiOperation`, `@DtoRequest`, `@DtoResponse` and `@DtoResponseError` decorators
+- Write tests with Vitest (`vi.fn()`, `vi.spyOn()`), with `unplugin-swc` so decorator metadata is emitted (see `references/testing-patterns.md`)
 - Write unit tests for every service method using `Test.createTestingModule`, mocking custom repositories by class
 - Name test files `.test.ts`
 - Write unit tests for every entity, dto and validator
 - Read config through Nest's `ConfigService` (from `@nestjs/config`) inside DI, and through `ApiConfigService` (`src/modules/config/api-config.service.ts`) outside DI; never hardcode values (see `references/configuration.md`)
 - Use enum's for string values
 - Extend `DomainObject` and name tables with `@Entity(DatabaseTable.X)`; entities that skip `DomainObject` declare their own `@PrimaryGeneratedColumn`
+- Use integer primary keys (`SERIAL`) and integer foreign keys for every table
+- Turn database SSL on or off with `DB_SSL` (`true`/`false`), never from the environment name
 - Include the six audit columns in migrations for `DomainObject` entities
 - Create a domain factory and an entity validator for each entity
 - Call fixtures in `test/resources/` test factories (`{x}.test-factory.ts`, `XTestFactory`)
@@ -572,6 +603,13 @@ describe(PostsService.name, () => {
 - Create circular dependencies between modules — use `forwardRef()` only as a last resort
 - Hardcode hostnames, ports, or credentials in source files
 - Name a custom class `ConfigService` or read `process.env` directly outside `ApiConfigService`
+- Use UUID or string primary keys
+- Use Jest, `ts-jest` or `jest.*` APIs — tests run on Vitest
+- Store a refresh token hash on the user — it limits each user to one session
+- Return the refresh token in the response body when it was delivered as a cookie
+- Put the access token in a cookie
+- Return 403 or 500 for a missing subscription — it is 402 `SUBSCRIPTION_REQUIRED`
+- Put `api` or `v1` in `@Controller()` or route paths
 - Skip error handling in service methods
 - Comment Code
 - Create an unauthenticated endpoint without an explicit `@Public()` — everything else is protected by the global guards (see `references/authentication.md`)
@@ -594,4 +632,4 @@ When implementing a NestJS feature, provide in this order:
 
 ## Knowledge Reference
 
-NestJS, TypeScript, TypeORM, Passport, JWT, bcrypt, class-validator, class-transformer, Swagger/OpenAPI, Jest, Supertest, Guards, Interceptors, Pipes, Filters, @nestjs/terminus, @nestjs/axios, @nestjs-modules/mailer, helmet
+NestJS, TypeScript, TypeORM, Passport, JWT, bcrypt, cookie-parser, class-validator, class-transformer, Swagger/OpenAPI, Vitest, unplugin-swc, Supertest, Guards, Interceptors, Pipes, Filters, @nestjs/terminus, @nestjs/axios, @nestjs-modules/mailer, helmet

@@ -3,7 +3,7 @@
 ## Constraints
 
 ### MUST DO
-- Add `@Version('1')` to every endpoint
+- Serve every route under `/api/v1/`: set the `api` global prefix in `main.ts` and add `@Version('1')` to every endpoint
 - Add `@ApiBearerAuth('JWT-bearer-token')` and `@ApiTags(SwaggerTags.X)` to every controller
 - Return entities from endpoints; `@DtoResponse` maps them to the response DTO (see `references/dto-responses.md`)
 - Pass path ids to the service with the current user for user-owned records (`@Param('postId', ParseIntPipe) postId: number`, `@CurrentUser() user: User`) so the service checks ownership
@@ -13,6 +13,7 @@
 - Mark endpoints that need no authentication with `@Public()`; restrict by role with `@Roles(UserRole.Admin)`
 
 ### MUST NOT DO
+- Put `api` or `v1` in a `@Controller()` or route path — the global prefix and `@Version` add them
 - Add `@UseGuards(JwtAuthGuard)` or `@UseGuards(RolesGuard)` — both run globally as `APP_GUARD` (see `references/authentication.md`)
 - Read `@Req()` / `req.body` directly
 - Return DTO instances built by hand
@@ -289,11 +290,13 @@ A malformed id returns 400 from `ParseIntPipe`; a missing record returns 404.
 import { VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import basicAuth from 'express-basic-auth';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SwaggerConfigService } from './docs/swagger-config.service';
 import { CorsConfigService } from './modules/config/cors-config.service';
+import { ApiRoute } from './shared/enums/api-route.enum';
 import { requestIdMiddleware } from './shared/middleware/request-id.middleware';
 import { ApiValidationPipe } from './shared/pipes/api-validation.pipe';
 
@@ -305,18 +308,20 @@ async function bootstrap() {
   app.use(requestIdMiddleware);
   app.use(helmet({ contentSecurityPolicy: swaggerConfig.getContentSecurityPolicy() }));
   app.enableCors(corsConfig.getCorsOptions());
+  app.use(cookieParser());
+  app.setGlobalPrefix(ApiRoute.Prefix);
   app.enableVersioning({ type: VersioningType.URI });
   app.useGlobalPipes(new ApiValidationPipe());
 
   app.use(
-    ['/docs', '/docs-json'],
+    [`/${ApiRoute.Docs}`, `/${ApiRoute.Docs}-json`],
     basicAuth({
       challenge: true,
       users: { [swaggerConfig.getUsername()]: swaggerConfig.getPassword() },
     }),
   );
   SwaggerModule.setup(
-    '/docs',
+    ApiRoute.Docs,
     app,
     SwaggerModule.createDocument(app, swaggerConfig.buildDocument()),
   );
@@ -328,7 +333,15 @@ bootstrap();
 
 Middleware order matters: the request id is assigned first so every later log line can use it, and `helmet` and CORS run before any route, including Swagger.
 
-Routes are served as `/v1/posts`. Swagger UI is at `/docs` behind basic auth.
+Every route is served under `/api/v1/`: `setGlobalPrefix` adds `/api` and `@Version('1')` adds `/v1`, so `@Controller('posts')` is served at `/api/v1/posts`. Swagger UI is at `/api/docs` behind basic auth. `SwaggerModule.setup` doesn't apply the global prefix, so the docs path includes it.
+
+```typescript
+// src/shared/enums/api-route.enum.ts
+export enum ApiRoute {
+  Prefix = 'api',
+  Docs = 'api/docs',
+}
+```
 
 ```typescript
 // src/docs/swagger-config.service.ts
@@ -444,7 +457,7 @@ export class CorsConfigService extends ApiConfigService {
         .map((origin) => origin.trim()),
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Authorization', RequestHeader.RequestId],
+      allowedHeaders: ['Content-Type', 'Authorization', RequestHeader.RequestId, RequestHeader.AuthTransport],
       exposedHeaders: [RequestHeader.RequestId],
       maxAge: CorsValues.PreflightMaxAgeSeconds,
     };
@@ -466,7 +479,8 @@ Add a `SwaggerTags` entry for every new controller, and an `API_DOCUMENTATION` e
 | Decorator | Purpose |
 |-----------|---------|
 | `@Controller('path')` | Define route prefix |
-| `@Version('1')` | URI version (`/v1/...`) |
+| `app.setGlobalPrefix(ApiRoute.Prefix)` | `/api` prefix on every route |
+| `@Version('1')` | URI version, giving `/api/v1/...` |
 | `@Get()`, `@Post()`, `@Put()`, `@Patch()`, `@Delete()` | HTTP method |
 | `@Param('name', Pipe)` | Path parameter |
 | `@Query('name')` | Query parameter |

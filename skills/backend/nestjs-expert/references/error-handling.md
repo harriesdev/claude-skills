@@ -5,6 +5,7 @@ Every error response has the same shape. A global `HttpExceptionFilter` builds i
 ```json
 { "error": "VALIDATION_ERROR", "message": "Validation failed", "details": { "title": ["title should not be empty"] }, "requestId": "4f1c…" }
 { "error": "NOT_FOUND", "message": "Post not found", "requestId": "4f1c…" }
+{ "error": "SUBSCRIPTION_REQUIRED", "message": "An active subscription is required", "requestId": "4f1c…" }
 { "error": "INTERNAL_ERROR", "message": "An unexpected error occurred", "requestId": "4f1c…" }
 ```
 
@@ -15,10 +16,12 @@ Every error response has the same shape. A global `HttpExceptionFilter` builds i
 - Register `requestIdMiddleware` first in `main.ts`
 - Throw Nest `HttpException` subclasses with enum messages for every expected error
 - Throw `ValidationException` (never a plain `BadRequestException`) for class-validator failures
+- Throw `SubscriptionRequiredException` (402) when an action needs a subscription the user doesn't have
 
 ### MUST NOT DO
 - Send stack traces, SQL, or messages from non-HTTP errors to the client — the filter replaces them with a generic message and logs the original
 - Build error bodies by hand in controllers or services
+- Return 403 for a missing subscription — 403 means the user's role can never do this, 402 means paying would allow it
 
 ## Files
 
@@ -29,6 +32,7 @@ src/shared/
 │   ├── error-messages.enum.ts
 │   └── request-header.enum.ts
 ├── exceptions/
+│   ├── subscription-required.exception.ts
 │   └── validation.exception.ts
 ├── filter/
 │   └── http-exception.filter.ts
@@ -56,6 +60,7 @@ export enum ErrorCode {
   BadRequest = 'BAD_REQUEST',
   ValidationError = 'VALIDATION_ERROR',
   Unauthorized = 'UNAUTHORIZED',
+  SubscriptionRequired = 'SUBSCRIPTION_REQUIRED',
   Forbidden = 'FORBIDDEN',
   NotFound = 'NOT_FOUND',
   Conflict = 'CONFLICT',
@@ -70,11 +75,14 @@ export enum ErrorCode {
 export enum ErrorMessages {
   ValidationFailed = 'Validation failed',
   Unexpected = 'An unexpected error occurred',
+  SubscriptionRequired = 'An active subscription is required',
 }
 
 // src/shared/enums/request-header.enum.ts
 export enum RequestHeader {
   RequestId = 'x-request-id',
+  AuthTransport = 'x-auth-transport',
+  UserAgent = 'user-agent',
 }
 ```
 
@@ -121,6 +129,24 @@ export function toValidationDetails(
 
 Nested errors use dotted paths: `items.0.quantity`.
 
+## SubscriptionRequiredException
+
+A user who is signed in but whose plan doesn't include an action gets **402** with `SUBSCRIPTION_REQUIRED`, so clients can show an upgrade prompt instead of an error. Without the `PAYMENT_REQUIRED` entry in `ERROR_CODES`, the filter would label a 402 as `INTERNAL_ERROR`.
+
+```typescript
+// src/shared/exceptions/subscription-required.exception.ts
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { ErrorMessages } from '../enums/error-messages.enum';
+
+export class SubscriptionRequiredException extends HttpException {
+  constructor(message: string = ErrorMessages.SubscriptionRequired) {
+    super(message, HttpStatus.PAYMENT_REQUIRED);
+  }
+}
+```
+
+Throw it from the service that enforces the plan rule, or from a guard when a whole controller needs a subscription. Document it on each affected endpoint with `@DtoResponseError(HttpStatus.PAYMENT_REQUIRED, 'Subscription required')`.
+
 ## HttpExceptionFilter
 
 ```typescript
@@ -143,6 +169,7 @@ import { ApiError } from '../interfaces/api-error.interface';
 const ERROR_CODES: Partial<Record<HttpStatus, ErrorCode>> = {
   [HttpStatus.BAD_REQUEST]: ErrorCode.BadRequest,
   [HttpStatus.UNAUTHORIZED]: ErrorCode.Unauthorized,
+  [HttpStatus.PAYMENT_REQUIRED]: ErrorCode.SubscriptionRequired,
   [HttpStatus.FORBIDDEN]: ErrorCode.Forbidden,
   [HttpStatus.NOT_FOUND]: ErrorCode.NotFound,
   [HttpStatus.CONFLICT]: ErrorCode.Conflict,
@@ -222,6 +249,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 | Thrown | Status | `error` | `message` sent |
 |--------|--------|---------|----------------|
 | `ValidationException` | 400 | `VALIDATION_ERROR` | `Validation failed` + `details` |
+| `SubscriptionRequiredException` | 402 | `SUBSCRIPTION_REQUIRED` | the exception's message |
 | Other `HttpException` (4xx, 502, 503) | its status | from `ERROR_CODES` | the exception's message |
 | `HttpException` with 500 (e.g. `IllegalArgumentException`) | 500 | `INTERNAL_ERROR` | generic, original logged |
 | Anything else (TypeORM, TypeError…) | 500 | `INTERNAL_ERROR` | generic, original logged |

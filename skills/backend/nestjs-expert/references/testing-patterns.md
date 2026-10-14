@@ -3,32 +3,74 @@
 ## Constraints
 
 ### MUST DO
-- Name test files `{x}.test.ts` and mirror the `src/` path under `test/` (Jest only matches `.*\.test\.ts$`)
+- Run tests with Vitest, using `unplugin-swc` so decorator metadata is emitted
+- Name test files `{x}.test.ts` and mirror the `src/` path under `test/`; name E2E tests `test/e2e/{x}.e2e.test.ts`
 - Mock custom repositories by class (`{ provide: PostRepository, useValue: ... }`)
 - Build entity fixtures with test factories from `test/resources/`
-- Register `requestIdMiddleware`, `ApiValidationPipe` and URI versioning in E2E apps, matching `main.ts`
+- Register `requestIdMiddleware`, `cookieParser()`, the `api` global prefix, URI versioning and `ApiValidationPipe` in E2E apps, matching `main.ts`
 - Test that another user's record returns 404 for every endpoint on a user-owned resource
 
 ### MUST NOT DO
 - Mock `getRepositoryToken(Entity)` for services that inject a custom repository — the token isn't what they depend on
 - Name test files `.spec.ts`
+- Use Jest, `ts-jest` or `jest.*` APIs — use Vitest and `vi.*`
+- Run Vitest without `unplugin-swc` — esbuild drops the decorator metadata Nest's DI needs
 
-## Jest Config
+## Vitest Config
+
+Tests run on Vitest. Vitest transforms TypeScript with esbuild, which doesn't emit decorator metadata, so Nest can't resolve constructor dependencies. `unplugin-swc` replaces that transform with SWC, which does.
+
+```typescript
+// vitest.config.ts
+import swc from 'unplugin-swc';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['test/**/*.test.ts'],
+    exclude: ['test/e2e/**'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      reportsDirectory: './coverage',
+    },
+  },
+  plugins: [swc.vite({ module: { type: 'es6' } })],
+});
+
+// vitest.config.e2e.ts
+import swc from 'unplugin-swc';
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['test/e2e/**/*.e2e.test.ts'],
+    fileParallelism: false,
+  },
+  plugins: [swc.vite({ module: { type: 'es6' } })],
+});
+```
 
 ```json
 // package.json
-"jest": {
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": "test",
-  "testRegex": ".*\\.test\\.ts$",
-  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
-  "collectCoverageFrom": ["**/*.(t|j)s"],
-  "coverageDirectory": "../coverage",
-  "testEnvironment": "node"
+"scripts": {
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:cov": "vitest run --coverage",
+  "test:e2e": "vitest run --config vitest.config.e2e.ts"
+}
+
+// tsconfig.json
+"compilerOptions": {
+  "types": ["vitest/globals"]
 }
 ```
 
-E2E tests use `test/jest-e2e.json` and run with `npm run test:e2e`.
+Install `vitest`, `@vitest/coverage-v8`, `unplugin-swc`, `@swc/core` and `supertest` as dev dependencies. `globals: true` makes `describe`, `it`, `expect` and `vi` available without imports; import types such as `Mocked` from `vitest`.
 
 ## Unit Test Setup
 
@@ -61,7 +103,7 @@ describe(PostsService.name, () => {
     service = module.get(PostsService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => vi.clearAllMocks());
 });
 ```
 
@@ -109,9 +151,11 @@ describe('getOwnedPost', () => {
 ## Controller Tests
 
 ```typescript
+import type { Mocked } from 'vitest';
+
 describe('UsersController', () => {
   let controller: UsersController;
-  let service: jest.Mocked<UsersService>;
+  let service: Mocked<UsersService>;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -120,8 +164,8 @@ describe('UsersController', () => {
         {
           provide: UsersService,
           useValue: {
-            create: jest.fn(),
-            findOne: jest.fn(),
+            create: vi.fn(),
+            findOne: vi.fn(),
           },
         },
       ],
@@ -133,7 +177,7 @@ describe('UsersController', () => {
 
   it('should create user', async () => {
     const dto = { email: 'test@test.com', password: 'pass', name: 'Test' };
-    const user = { id: '1', ...dto };
+    const user = { id: 1, ...dto };
     service.create.mockResolvedValue(user as User);
 
     const result = await controller.create(dto);
@@ -145,12 +189,15 @@ describe('UsersController', () => {
 ## E2E Tests
 
 ```typescript
+// test/e2e/users.e2e.test.ts
 import { INestApplication, VersioningType } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import * as request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { requestIdMiddleware } from '../src/shared/middleware/request-id.middleware';
-import { ApiValidationPipe } from '../src/shared/pipes/api-validation.pipe';
+import cookieParser from 'cookie-parser';
+import request from 'supertest';
+import { AppModule } from '../../src/app.module';
+import { requestIdMiddleware } from '../../src/shared/middleware/request-id.middleware';
+import { ApiValidationPipe } from '../../src/shared/pipes/api-validation.pipe';
+import { ApiRoute } from '../../src/shared/enums/api-route.enum';
 
 describe('UsersController (e2e)', () => {
   let app: INestApplication;
@@ -163,21 +210,23 @@ describe('UsersController (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.use(requestIdMiddleware);
+    app.use(cookieParser());
+    app.setGlobalPrefix(ApiRoute.Prefix);
     app.enableVersioning({ type: VersioningType.URI });
     app.useGlobalPipes(new ApiValidationPipe());
     await app.init();
 
     const response = await request(app.getHttpServer())
-      .post('/v1/authentication/login')
+      .post('/api/v1/authentication/login')
       .send({ email: 'test@test.com', password: 'password' });
     authToken = response.body.accessToken;
   });
 
   afterAll(() => app.close());
 
-  it('/users (POST)', () => {
+  it('/api/v1/users (POST)', () => {
     return request(app.getHttpServer())
-      .post('/v1/users')
+      .post('/api/v1/users')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ email: 'new@test.com', password: 'Test1234', name: 'New' })
       .expect(201)
@@ -186,14 +235,89 @@ describe('UsersController (e2e)', () => {
       });
   });
 
-  it('/users/:id (GET) - 404', () => {
+  it('/api/v1/users/:id (GET) - 404', () => {
     return request(app.getHttpServer())
-      .get('/v1/users/999999')
+      .get('/api/v1/users/999999')
       .set('Authorization', `Bearer ${authToken}`)
       .expect(404);
   });
 });
 ```
+
+### Refresh Cookie and Sessions
+
+Test both transports and the session rules end to end. `supertest`'s `agent` keeps cookies between requests like a browser.
+
+```typescript
+// test/e2e/authentication.e2e.test.ts
+it('sets the refresh cookie for the web app and refreshes from it', async () => {
+  const agent = request.agent(app.getHttpServer());
+
+  const login = await agent
+    .post('/api/v1/authentication/login')
+    .set(RequestHeader.AuthTransport, AuthTransport.Cookie)
+    .send({ email: 'test@test.com', password: 'password' })
+    .expect(200);
+
+  expect(login.body.accessToken).toEqual(expect.any(String));
+  expect(login.body.refreshToken).toBeNull();
+  expect(login.headers['set-cookie']).toEqual(
+    expect.arrayContaining([expect.stringMatching(/^refresh_token=.*HttpOnly.*SameSite=Strict/)]),
+  );
+
+  const refreshed = await agent.post('/api/v1/authentication/refresh').send({}).expect(200);
+  expect(refreshed.body.refreshToken).toBeNull();
+
+  await request(app.getHttpServer())
+    .get('/api/v1/authentication/sessions')
+    .set('Authorization', `Bearer ${refreshed.body.accessToken}`)
+    .expect(200);
+});
+
+it('does not accept the refresh cookie as authentication on other routes', async () => {
+  const agent = request.agent(app.getHttpServer());
+  await agent
+    .post('/api/v1/authentication/login')
+    .set(RequestHeader.AuthTransport, AuthTransport.Cookie)
+    .send({ email: 'test@test.com', password: 'password' })
+    .expect(200);
+
+  await agent.get('/api/v1/authentication/sessions').expect(401);
+});
+
+it('keeps the other session when one device logs out', async () => {
+  const first = await login();
+  const second = await login();
+
+  await request(app.getHttpServer())
+    .post('/api/v1/authentication/logout')
+    .set('Authorization', `Bearer ${first.accessToken}`)
+    .expect(204);
+
+  await request(app.getHttpServer())
+    .get('/api/v1/authentication/sessions')
+    .set('Authorization', `Bearer ${first.accessToken}`)
+    .expect(401);
+  await request(app.getHttpServer())
+    .get('/api/v1/authentication/sessions')
+    .set('Authorization', `Bearer ${second.accessToken}`)
+    .expect(200);
+});
+
+it('ends only the reused session when an old refresh token is replayed', async () => {
+  const session = await login();
+  const other = await login();
+  const refresh = (refreshToken: string) =>
+    request(app.getHttpServer()).post('/api/v1/authentication/refresh').send({ refreshToken });
+
+  const rotated = await refresh(session.refreshToken).expect(200);
+  await refresh(session.refreshToken).expect(401);
+  await refresh(rotated.body.refreshToken).expect(401);
+  await refresh(other.refreshToken).expect(200);
+});
+```
+
+`login()` is a helper in the test file that posts to `/api/v1/authentication/login` without the transport header and returns the body.
 
 ## Entity Tests
 
@@ -277,25 +401,25 @@ export const UserTestFactory = {
 ```typescript
 // test/resources/modules/database/repositories/create-mock-repository.ts
 export const createMockRepository = () => ({
-  create: jest.fn(),
-  save: jest.fn(),
-  find: jest.fn(),
-  findOne: jest.fn(),
-  findOneBy: jest.fn(),
-  findById: jest.fn(),
-  findAndCount: jest.fn(),
-  findPage: jest.fn(),
-  recover: jest.fn(),
-  restore: jest.fn(),
-  softRemove: jest.fn(),
-  remove: jest.fn(),
-  update: jest.fn(),
-  delete: jest.fn(),
-  createQueryBuilder: jest.fn(() => ({
-    where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn().mockReturnThis(),
-    getOne: jest.fn(),
-    getMany: jest.fn(),
+  create: vi.fn(),
+  save: vi.fn(),
+  find: vi.fn(),
+  findOne: vi.fn(),
+  findOneBy: vi.fn(),
+  findById: vi.fn(),
+  findAndCount: vi.fn(),
+  findPage: vi.fn(),
+  recover: vi.fn(),
+  restore: vi.fn(),
+  softRemove: vi.fn(),
+  remove: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
+  createQueryBuilder: vi.fn(() => ({
+    where: vi.fn().mockReturnThis(),
+    andWhere: vi.fn().mockReturnThis(),
+    getOne: vi.fn(),
+    getMany: vi.fn(),
   })),
 });
 ```
@@ -306,9 +430,9 @@ export const PostRepositoryTestFactory = {
   build() {
     return {
       ...createMockRepository(),
-      findAll: jest.fn(),
-      findPageByUser: jest.fn(),
-      findByIdWithRelations: jest.fn(),
+      findAll: vi.fn(),
+      findPageByUser: vi.fn(),
+      findByIdWithRelations: vi.fn(),
     };
   },
 };
@@ -319,8 +443,10 @@ export const PostRepositoryTestFactory = {
 | Pattern | Use Case |
 |---------|----------|
 | `Test.createTestingModule()` | Create test module |
-| `jest.fn()` | Mock function |
+| `vi.fn()` | Mock function |
+| `vi.spyOn()` | Spy on an existing method |
 | `mockResolvedValue()` | Mock async return |
 | `mockReturnValue()` | Mock sync return |
 | `supertest` | E2E HTTP testing |
+| `vitest run --config vitest.config.e2e.ts` | Run E2E tests |
 | `beforeAll` / `afterAll` | Setup/teardown |
