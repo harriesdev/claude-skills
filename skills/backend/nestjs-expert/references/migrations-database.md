@@ -8,13 +8,16 @@
 - Use down method to revert changes to original state in up method.
 - Include the six audit columns in every table for an entity that extends `DomainObject`
 - Use the `DatabaseTable` enum value as the table name
+- Use `TIMESTAMP WITH TIME ZONE` for every date and time column — a plain `TIMESTAMP` is read back in the server's local time zone, so dates shift on any machine not set to UTC
 - If dropping column, use two migration. The first changes the column name to `deprecated_column_name`. The second migration drops the deprecated column.
 
 - Create migration files with `npm run migration:create` (see `references/repository-typeorm.md`)
+- Add every new migration class to `Migrations` in `src/modules/database/migrations/index.ts` — the data source loads that list, not a file glob
 
 ### MUST NOT DO
 - Run migration
 - Enable `synchronize`
+- Use `TIMESTAMP` without a time zone
 - Use N+1 Queries
 
 
@@ -39,9 +42,9 @@ export class CreatePostTable1761848303790
         description VARCHAR(255),
         cost NUMERIC DEFAULT NULL,
         user_id INTEGER NOT NULL,
-        created_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         created_by INTEGER NULL,
-        updated_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_by INTEGER NULL,
         deleted_date TIMESTAMP WITH TIME ZONE NULL,
         deleted_by INTEGER NULL,
@@ -62,9 +65,9 @@ export class CreatePostTable1761848303790
 
 | Column | Type | Maps to |
 |--------|------|---------|
-| `created_date` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | `DomainObject.createdDate` |
+| `created_date` | `TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP` | `DomainObject.createdDate` |
 | `created_by` | `INTEGER NULL` | `DomainObject.createdBy` |
-| `updated_date` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | `DomainObject.updatedDate` |
+| `updated_date` | `TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP` | `DomainObject.updatedDate` |
 | `updated_by` | `INTEGER NULL` | `DomainObject.updatedBy` |
 | `deleted_date` | `TIMESTAMP WITH TIME ZONE NULL` | `DomainObject.deletedDate` |
 | `deleted_by` | `INTEGER NULL` | `DomainObject.deletedBy` |

@@ -9,6 +9,8 @@
 - Build entity fixtures with test factories from `test/resources/`
 - Register `requestIdMiddleware`, `cookieParser()`, the `api` global prefix, URI versioning and `ApiValidationPipe` in E2E apps, matching `main.ts`
 - Test that another user's record returns 404 for every endpoint on a user-owned resource
+- Run E2E and repository tests against a real Postgres database with the real migrations, never SQLite or column-type substitutes
+- Set test environment variables in a Vitest `setupFiles` file, so they exist before any test file imports the app
 
 ### MUST NOT DO
 - Mock `getRepositoryToken(Entity)` for services that inject a custom repository — the token isn't what they depend on
@@ -49,6 +51,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/e2e/**/*.e2e.test.ts'],
+    setupFiles: ['test/e2e/setup-env.ts'],
     fileParallelism: false,
   },
   plugins: [swc.vite({ module: { type: 'es6' } })],
@@ -69,6 +72,14 @@ export default defineConfig({
   "types": ["vitest/globals"]
 }
 ```
+
+```typescript
+// test/e2e/setup-env.ts
+process.env.DB_DATABASE = process.env.DB_DATABASE_TEST ?? 'app_test';
+process.env.DB_SSL = 'false';
+```
+
+Vitest runs `setupFiles` before each test file is imported. Config is read when the app boots (`forRootAsync` factories, `main.ts`), not when modules are imported, so the order of imports in a test file doesn't matter.
 
 Install `vitest`, `@vitest/coverage-v8`, `unplugin-swc`, `@swc/core` and `supertest` as dev dependencies. `globals: true` makes `describe`, `it`, `expect` and `vi` available without imports; import types such as `Mocked` from `vitest`.
 

@@ -2,7 +2,7 @@
 name: nestjs-expert
 description: Creates and configures NestJS modules, controllers, services, entities, DTOs, guards, and interceptors for enterprise-grade TypeScript backend applications. Use when building NestJS REST APIs, implementing dependency injection, scaffolding modular architecture, adding JWT/Passport authentication, integrating TypeORM, or working with .module.ts, .controller.ts, and .service.ts files. Invoke for guards, interceptors, pipes, validation, Swagger documentation, and unit/E2E testing in NestJS projects.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   domain: backend
   triggers: NestJS, Nest, Api, Node.js backend, TypeScript backend, dependency injection, controller, service, module, guard, interceptor, entity, typeorm, repository
   role: specialist
@@ -22,7 +22,7 @@ Senior NestJS specialist with deep expertise in enterprise-grade, scalable TypeS
 3. **Create** — Create entities, domain factories, validators, relationships and database migrations; register entities in `Entities` and repositories in `RepositoryServices`
 4. **Implement** — Create modules, services, forms, response DTOs and controllers with proper DI wiring
 5. **Secure** — Mark public endpoints with `@Public()`, restrict roles with `@Roles()`, validate input with forms and `ApiValidationPipe`
-6. **Verify** — Run `npm run lint`, `npm run build`, and confirm DI graph with `nest info`
+6. **Verify** — Run `npm run lint` and `npm run build`, then prove the DI graph resolves by booting the app: `npm run test:e2e`, or start `dist/main.js` and call `GET /api/v1/health`. `nest info` only prints package versions
 7. **Test** — Write Vitest unit tests for services and E2E tests for controllers. Write tests for entities. Run `npm run test`
 
 ## Reference Guide
@@ -99,25 +99,23 @@ server/
 │   │   │   │   ├── audit-user.interceptor.ts
 │   │   │   │   └── domain-audit.subscriber.ts
 │   │   │   ├── config/
-│   │   │   │   ├── column-types.functions.ts
+│   │   │   │   ├── data-source.ts
 │   │   │   │   ├── postgres-typeorm-config.service.ts
 │   │   │   │   └── snake-naming-strategy.ts
 │   │   │   ├── database.module.ts
 │   │   │   ├── migrations/
 │   │   │   │   ├── 1761848303789-create-user-table.ts
 │   │   │   │   ├── 1761848303790-create-post-table.ts
-│   │   │   │   └── 1761848303791-create-refresh-token-table.ts
+│   │   │   │   ├── 1761848303792-create-refresh-token-table.ts
+│   │   │   │   └── index.ts
 │   │   │   └── repositories
 │   │   │       ├── repository-services.const.ts
 │   │   │       ├── repository.support.ts
 │   │   │       ├── refresh-token/
-│   │   │       │   ├── refresh-token-relation.type.ts
 │   │   │       │   └── refresh-token.repository.ts
 │   │   │       ├── user/
-│   │   │       │   ├── user-relation.type.ts
 │   │   │       │   └── user.repository.ts
 │   │   │       └── post/
-│   │   │           ├── post-relation.type.ts
 │   │   │           └── post.repository.ts
 │   │   ├── authentication/
 │   │   │   ├── authentication.controller.ts
@@ -402,10 +400,9 @@ export class Post extends DomainObject {
 // post.repository.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsRelations, Repository } from 'typeorm';
 import { Post } from '../../../../domain/post/post.entity';
 import { RepositorySupport } from '../repository.support';
-import { PostRelation } from './post-relation.type';
 
 @Injectable()
 export class PostRepository extends RepositorySupport<Post> {
@@ -413,12 +410,12 @@ export class PostRepository extends RepositorySupport<Post> {
     @InjectRepository(Post)
     repository: Repository<Post>,
   ) {
-    super(Post, repository.manager.connection);
+    super(Post, repository.manager.dataSource);
   }
 
-  private postRelations: PostRelation[] = [
-    'comments',
-  ];
+  private postRelations: FindOptionsRelations<Post> = {
+    comments: true,
+  };
 
   public findAll(): Promise<Post[]> {
     return super.find({
@@ -473,9 +470,9 @@ export class CreatePostTable1761848303790
         description VARCHAR(255),
         cost NUMERIC DEFAULT NULL,
         user_id INTEGER NOT NULL,
-        created_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         created_by INTEGER NULL,
-        updated_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_by INTEGER NULL,
         deleted_date TIMESTAMP WITH TIME ZONE NULL,
         deleted_by INTEGER NULL,
@@ -579,9 +576,13 @@ describe(PostsService.name, () => {
 - Name test files `.test.ts`
 - Write unit tests for every entity, dto and validator
 - Read config through Nest's `ConfigService` (from `@nestjs/config`) inside DI, and through `ApiConfigService` (`src/modules/config/api-config.service.ts`) outside DI; never hardcode values (see `references/configuration.md`)
+- Read config when the app boots (`forRootAsync({ useFactory })`, `bootstrap()`), never when a file is imported; validate URLs with `getUrl()` and flags with `getBoolean()`
 - Use enum's for string values
 - Extend `DomainObject` and name tables with `@Entity(DatabaseTable.X)`; entities that skip `DomainObject` declare their own `@PrimaryGeneratedColumn`
 - Use integer primary keys (`SERIAL`) and integer foreign keys for every table
+- Use `TIMESTAMP WITH TIME ZONE` / `timestamptz` for every date column, including `@CreateDateColumn`, `@UpdateDateColumn` and `@DeleteDateColumn`
+- List entities in `Entities` (`src/domain/index.ts`) and migrations in `Migrations` (`src/modules/database/migrations/index.ts`); the data source uses those lists, never file globs
+- Pass relations as `FindOptionsRelations<T>` objects and match `NULL` with `IsNull()` (TypeORM 1.x)
 - Turn database SSL on or off with `DB_SSL` (`true`/`false`), never from the environment name
 - Include the six audit columns in migrations for `DomainObject` entities
 - Create a domain factory and an entity validator for each entity
@@ -610,6 +611,8 @@ describe(PostsService.name, () => {
 - Put the access token in a cookie
 - Return 403 or 500 for a missing subscription — it is 402 `SUBSCRIPTION_REQUIRED`
 - Put `api` or `v1` in `@Controller()` or route paths
+- Strip the user entity with `plainToInstance(..., { excludeExtraneousValues: true })` — response DTOs control output
+- Substitute column types for tests — tests run against real Postgres
 - Skip error handling in service methods
 - Comment Code
 - Create an unauthenticated endpoint without an explicit `@Public()` — everything else is protected by the global guards (see `references/authentication.md`)
@@ -624,11 +627,15 @@ When implementing a NestJS feature, provide in this order:
 5. Domain factories (`.factory.ts`) and entity validators (`.validator.ts`)
 6. Migrations including audit columns for `DomainObject` entities
 7. Forms (`.form.ts`), request DTOs with `class-validator` decorators and response DTOs (`.dto.ts`)
-8. Repositories extending `RepositorySupport` (`.repository.ts`), relation types, and the `RepositoryServices` entry
+8. Repositories extending `RepositorySupport` (`.repository.ts`) and the `RepositoryServices` entry
 9. Unit tests (`.test.ts`) and test factories (`.test-factory.ts`)
 10. Enums for strings (`.enum.ts`)
 11. Interface typing (`.interface.ts`)
 12. Constants for numerical variables (`.const.ts`)
+
+## Versions
+
+Written for Node.js 20.19+ (22.13+ or 24.11+ on those lines), TypeORM 1.x with `@nestjs/typeorm` 11.0.1+, and PostgreSQL. TypeORM 1.0 removed string-array `relations` and `select`, deprecated `manager.connection` in favour of `manager.dataSource`, and throws on `null` or `undefined` in `where`.
 
 ## Knowledge Reference
 

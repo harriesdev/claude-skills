@@ -5,7 +5,7 @@ Two config services exist side by side. They have different names so it is alway
 | Service | Import from | Injectable | Use when |
 |---------|-------------|------------|----------|
 | `ConfigService` | `@nestjs/config` | Yes | Inside the Nest DI container: services, strategies, guards, `registerAsync` factories |
-| `ApiConfigService` | `src/modules/config/api-config.service.ts` | No | Outside the DI container: `main.ts` bootstrap, `forRoot()` module options, the TypeORM CLI `DataSource`, Swagger setup |
+| `ApiConfigService` | `src/modules/config/api-config.service.ts` | No | Outside the DI container: `main.ts` bootstrap, `forRootAsync()` factories, the TypeORM CLI `DataSource`, Swagger setup |
 
 ## Constraints
 
@@ -14,6 +14,8 @@ Two config services exist side by side. They have different names so it is alway
 - Inject `ConfigService` from `@nestjs/config` in any class the DI container creates
 - Use `getOrThrow()` for required values on `ConfigService`
 - Read boolean flags with `getBoolean()`, which accepts only `true` or `false` and throws on anything else
+- Read URLs with `getUrl()`, which requires an absolute `http` or `https` URL and throws on anything else
+- Read config inside functions: `forRootAsync({ useFactory })`, `bootstrap()` in `main.ts`, or a constructor
 - Use `ApiConfigService` (or a subclass) for values needed before or outside DI
 - Subclass `ApiConfigService` per concern (e.g. `PostgresTypeormConfigService`) and list required keys in its static `create()` with `ensureValues()`
 - Subclass Nest's `ConfigService` for injectable, concern-specific config (e.g. `SocratesHttpConfigService`)
@@ -24,6 +26,7 @@ Two config services exist side by side. They have different names so it is alway
 - Instantiate Nest's `ConfigService` with `new`
 - Inject `ApiConfigService` — it is a plain class, not a provider
 - Decide feature flags such as database SSL from `isProduction()` — give each its own variable (`DB_SSL`)
+- Read config at module scope or in decorator arguments, such as `TypeOrmModule.forRoot(new XConfigService().getConfig())` — it runs when the file is imported, before tests can set their environment
 
 ## ApiConfigService
 
@@ -55,16 +58,21 @@ export class ApiConfigService {
     return this.getEnvironment() === Environment.Production;
   }
 
-  public isTesting(): boolean {
-    return this.getValue('ENV', false) === Environment.Testing;
-  }
-
   public getBoolean(key: string): boolean {
     const value = this.getValue(key);
     if (value !== 'true' && value !== 'false') {
       throw new Error(`Config Error - Env.${key} must be true or false`);
     }
     return value === 'true';
+  }
+
+  public getUrl(key: string): string {
+    const value = this.getValue(key);
+    const url = URL.canParse(value) ? new URL(value) : null;
+    if (!url || !['http:', 'https:'].includes(url.protocol)) {
+      throw new Error(`Config Error - Env.${key} must be an http or https URL`);
+    }
+    return value;
   }
 
   protected getValue(key: string, throwOnMissing = true): string {
@@ -88,7 +96,6 @@ export interface ConfigSource {
 // src/modules/config/types/environment.enum.ts
 export enum Environment {
   Production = 'PROD',
-  Testing = 'testing',
 }
 ```
 
@@ -112,8 +119,10 @@ export class PostgresTypeormConfigService extends ApiConfigService {
   }
 }
 
-// usage in a module's static imports
-TypeOrmModule.forRoot(PostgresTypeormConfigService.create().getConfig())
+// usage: read when the app boots, not when the module file is imported
+TypeOrmModule.forRootAsync({
+  useFactory: () => PostgresTypeormConfigService.create().getConfig(),
+})
 ```
 
 ## Nest ConfigService (inside DI)
@@ -168,7 +177,7 @@ export class SocratesHttpConfigService extends ConfigService {
 | Need | Use |
 |------|-----|
 | Port, Swagger credentials in `main.ts` | `new ApiConfigService()` |
-| `TypeOrmModule.forRoot`, `MailerModule.forRoot` options | `ApiConfigService` subclass |
+| `TypeOrmModule.forRootAsync`, `MailerModule.forRootAsync` factories | `ApiConfigService` subclass |
 | TypeORM CLI `DataSource` | `ApiConfigService` subclass |
 | CORS allow-list, Swagger credentials | `CorsConfigService`, `SwaggerConfigService` (`ApiConfigService` subclasses) |
 | JWT secrets in the auth service | Nest `ConfigService` via constructor |

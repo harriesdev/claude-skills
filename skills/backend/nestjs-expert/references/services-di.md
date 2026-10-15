@@ -186,11 +186,13 @@ export class PostsModule {}
 
 // Async factory
 {
-  provide: 'DATABASE_CONNECTION',
-  useFactory: async () => {
-    const connection = await createConnection();
-    return connection;
+  provide: SearchClient,
+  useFactory: async (configService: ConfigService) => {
+    const client = new SearchClient(configService.getOrThrow<string>('SEARCH_URL'));
+    await client.connect();
+    return client;
   },
+  inject: [ConfigService],
 }
 ```
 
@@ -395,7 +397,7 @@ public async getMerchant(id: string): Promise<Merchant> {
 
 ## Email
 
-Email is sent through `@nestjs-modules/mailer`. `MailerModule.forRoot` is configured in `AppModule` with an `ApiConfigService` subclass; a `MessagesService` owns every outgoing message.
+Email is sent through `@nestjs-modules/mailer`. `MailerModule.forRootAsync` is configured in `AppModule` with an `ApiConfigService` subclass; a `MessagesService` owns every outgoing message.
 
 ```typescript
 // mail-config.service.ts
@@ -424,7 +426,9 @@ export class MailConfigService extends ApiConfigService {
 }
 
 // app.module.ts
-MailerModule.forRoot(MailConfigService.create().getMailerOptions())
+MailerModule.forRootAsync({
+  useFactory: () => MailConfigService.create().getMailerOptions(),
+})
 
 // messages.service.ts
 @Injectable()

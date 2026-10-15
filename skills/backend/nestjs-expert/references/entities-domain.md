@@ -5,6 +5,7 @@
 ### MUST DO
 - Extend `DomainObject` for every entity that needs an id and audit columns
 - Use integer primary keys (`@PrimaryGeneratedColumn()`, `SERIAL`) for every table
+- Declare every date column as `timestamptz`, including `@CreateDateColumn`, `@UpdateDateColumn` and `@DeleteDateColumn`, whose Postgres default is `timestamp` without a time zone
 - Name every table with `@Entity(DatabaseTable.X)` and add the table to the `DatabaseTable` enum
 - Eager load OneToOne & ManyToOne relationships
 - Use relationships in repository queries or lazy load OneToMany relationships
@@ -52,19 +53,19 @@ export abstract class DomainObject {
   @PrimaryGeneratedColumn()
   public id: number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   public createdDate: Date;
 
   @Column({ type: 'int', nullable: true })
   public createdBy: number;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   public updatedDate: Date;
 
   @Column({ type: 'int', nullable: true })
   public updatedBy: number;
 
-  @DeleteDateColumn()
+  @DeleteDateColumn({ type: 'timestamptz' })
   public deletedDate: Date;
 
   @Column({ type: 'int', nullable: true })
@@ -526,48 +527,6 @@ export class ColumnNumericTransformer {
   })
   cost: number;
 ```
-
-## Column Type Helpers
-
-Postgres-specific column types (`enum`, `json`, `jsonb`, `bytea`) fall back to `String` when `NODE_ENV=testing`, so entities also load in test databases that don't support them.
-
-```typescript
-// src/modules/database/config/column-types.functions.ts
-import { Column, ColumnOptions } from 'typeorm';
-
-export function EnumColumn(
-  enumReference: object,
-  options?: ColumnOptions,
-): PropertyDecorator {
-  return Column(stringOr({ ...options, type: 'enum', enum: enumReference }));
-}
-
-export function JsonColumn(options?: ColumnOptions): PropertyDecorator {
-  return Column(stringOr({ ...options, type: 'json' }));
-}
-
-export function JsonBColumn(options?: ColumnOptions): PropertyDecorator {
-  return Column(stringOr({ ...options, type: 'jsonb' }));
-}
-
-export function ByteaColumn(options?: ColumnOptions): PropertyDecorator {
-  return Column(stringOr({ ...options, type: 'bytea' }));
-}
-
-function stringOr<T extends ColumnOptions>(options: T): T {
-  return isTestingEnv() ? { ...options, type: String } : options;
-}
-
-function isTestingEnv(): boolean {
-  return new ApiConfigService().isTesting();
-}
-
-// usage
-@EnumColumn(UserRole, { array: true })
-roles: UserRole[];
-```
-
-Add `Testing = 'testing'` to the `Environment` enum and set `ENV=testing` in the test environment.
 
 ## Entity Validator
 

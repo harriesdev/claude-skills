@@ -18,7 +18,7 @@ Every client sends the access token as an `Authorization: Bearer` header. The we
 - Register `JwtAuthGuard` and `RolesGuard` as `APP_GUARD` in `AppModule`
 - Mark every unauthenticated endpoint with `@Public()`
 - Use `@Roles(UserRole.X)` with the `UserRole` enum for role checks
-- Load the full user entity in `JwtAuthGuard` and attach it to `request.user`, and reject the request when its session is revoked or expired
+- Load the user entity in `JwtAuthGuard` and attach it to `request.user` as loaded, and reject the request when its session is revoked or expired
 - Get the authenticated user with `@CurrentUser()` and its session id with `@CurrentSessionId()`
 - Hash passwords with bcrypt
 - Exclude the password and the refresh token hash from every serialized entity (`@Exclude()`)
@@ -42,6 +42,7 @@ Every client sends the access token as an `Authorization: Bearer` header. The we
 - Use `SameSite=None` on the refresh cookie — `Strict` is what stops cross-site requests from carrying it
 - Reveal whether an email is registered in login responses
 - Return a user entity without a response DTO
+- Strip fields from the user with `plainToInstance(..., { excludeExtraneousValues: true })` — it drops every field without `@Expose`, including `id` and `roles`, so ownership checks, audit columns and `RolesGuard` break
 
 ## Files
 
@@ -75,10 +76,9 @@ src/
 │   │       └── jwt.strategy.ts
 │   └── database/
 │       ├── migrations/
-│       │   └── 1761848303791-create-refresh-token-table.ts
+│       │   └── 1761848303792-create-refresh-token-table.ts
 │       └── repositories/
 │           └── refresh-token/
-│               ├── refresh-token-relation.type.ts
 │               └── refresh-token.repository.ts
 └── shared/
     ├── decorators/
@@ -196,7 +196,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     const user = await this.usersService
-      .getSanitizedUserById(payload.sub)
+      .getUserById(payload.sub)
       .catch(() => null);
     if (!user) {
       throw new UnauthorizedException(AuthenticationMessages.UserNotFound);
@@ -472,11 +472,11 @@ RefreshToken = 'refresh_token',
 ### Migration
 
 ```typescript
-// 1761848303791-create-refresh-token-table.ts
+// 1761848303792-create-refresh-token-table.ts
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateRefreshTokenTable1761848303791 implements MigrationInterface {
-  name = 'CreateRefreshTokenTable1761848303791';
+export class CreateRefreshTokenTable1761848303792 implements MigrationInterface {
+  name = 'CreateRefreshTokenTable1761848303792';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
@@ -488,9 +488,9 @@ export class CreateRefreshTokenTable1761848303791 implements MigrationInterface 
         expires_date TIMESTAMP WITH TIME ZONE NOT NULL,
         last_used_date TIMESTAMP WITH TIME ZONE NULL,
         revoked_date TIMESTAMP WITH TIME ZONE NULL,
-        created_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         created_by INTEGER NULL,
-        updated_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_by INTEGER NULL,
         deleted_date TIMESTAMP WITH TIME ZONE NULL,
         deleted_by INTEGER NULL,
@@ -515,9 +515,6 @@ export class CreateRefreshTokenTable1761848303791 implements MigrationInterface 
 ### Repository
 
 ```typescript
-// refresh-token-relation.type.ts
-export type RefreshTokenRelation = 'user';
-
 // refresh-token.repository.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -534,7 +531,7 @@ export class RefreshTokenRepository extends RepositorySupport<RefreshToken> {
     @InjectRepository(RefreshToken)
     repository: Repository<RefreshToken>,
   ) {
-    super(RefreshToken, repository.manager.connection);
+    super(RefreshToken, repository.manager.dataSource);
   }
 
   public findActiveById(id: number, userId: number): Promise<RefreshToken | null> {
@@ -566,7 +563,7 @@ export class RefreshTokenRepository extends RepositorySupport<RefreshToken> {
 }
 ```
 
-Add `RefreshTokenRepository` to `RepositoryServices` and `RefreshToken` to `Entities`.
+Add `RefreshTokenRepository` to `RepositoryServices`, `RefreshToken` to `Entities`, and the migration to `Migrations`.
 
 ## Authentication Domain Object
 
@@ -1145,15 +1142,14 @@ export class AppModule {}
 
 Guards run in registration order: `ThrottlerGuard` rejects floods before any database work, then `JwtAuthGuard` attaches the user before `RolesGuard` checks roles. `UsersModule` must export `UsersService` because `JwtAuthGuard` injects it; `RefreshTokenRepository` comes from the global `DatabaseModule`.
 
-## Sanitizing the User Entity
+## User Entity
 
-The password is excluded from every serialized user. Admin-only fields are exposed only in the `Admin` group.
+`JwtAuthGuard` attaches the user exactly as it was loaded. What leaves the API is decided by response DTOs, which never map the password, so the entity doesn't need stripping. `@Exclude()` on the password is a second line of defence in case an entity is ever serialized directly.
 
 ```typescript
 @Entity(DatabaseTable.User)
 export class User extends DomainObject {
   @Column()
-  @Expose()
   public email: string;
 
   @Column({ nullable: true })
@@ -1161,7 +1157,6 @@ export class User extends DomainObject {
   private password: string;
 
   @Column({ type: 'enum', enum: UserRole, array: true })
-  @Expose({ groups: [UserRole.Admin] })
   roles: UserRole[];
 
   public static create(email: string, password: string, name: string, roles: UserRole[] = [UserRole.User]): User {
@@ -1171,18 +1166,6 @@ export class User extends DomainObject {
   public hasRole(roles: UserRole[]): boolean {
     return roles.some((role) => this.roles.includes(role));
   }
-}
-
-// users.service.ts
-public async getSanitizedUserById(id: number): Promise<User> {
-  return this.sanitizeUser(await this.getUserById(id));
-}
-
-private sanitizeUser(user: User): User {
-  return plainToInstance(User, user, {
-    excludeExtraneousValues: true,
-    enableImplicitConversion: true,
-  });
 }
 ```
 

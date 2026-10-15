@@ -327,24 +327,16 @@ function addDtoProperty(target: object, property: DtoPropertyType): void {
 
 ```typescript
 // src/shared/decorators/dto-type.decorator.ts
-export function DtoType(schemaName: string) {
-  return function classDecorator<T extends new (...args: unknown[]) => object>(
-    constructor: T,
-  ) {
-    return {
-      [schemaName]: class extends constructor {
-        public create() {
-          return new constructor();
-        }
-      },
-    }[schemaName];
+export function DtoType(schemaName: string): ClassDecorator {
+  return (target) => {
+    Object.defineProperty(target, 'name', { value: schemaName });
   };
 }
 ```
 
 Every DTO field is always present in the response. Missing values are sent as `null`, so clients get a stable schema.
 
-`@DtoType` renames the class so the Swagger schema is `Post` rather than `PostDto`.
+`@DtoType` renames the class in place so the Swagger schema is `Post` rather than `PostDto`. It doesn't wrap the class in a subclass: a class that extends a generic constructor is a mixin, which TypeScript only accepts when the constructor's parameters are typed `any[]`. Each DTO defines its own `create()`.
 
 ## Interceptors
 
